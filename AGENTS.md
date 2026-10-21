@@ -105,4 +105,7 @@ docs/CALIBRATION.md  calibration wizard: finding exposure for your resin batch
 CHANGELOG.md       release notes
 ```
 
+The user guide is the GitHub wiki (separate repo `copal.wiki`). When a feature lands,
+update its wiki page and remove the "planned" banner.
+
 Code does not exist yet. The planned workspace layout is in `docs/ARCHITECTURE.md`.
