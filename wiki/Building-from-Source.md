@@ -1,10 +1,8 @@
-> [!NOTE]
-> 🚧 This page describes a planned feature. It arrives in **Copal 0.0**. Details may change.
-
 
 ## Requirements
 - Rust (stable) — install with [rustup](https://rustup.rs)
-- Linux: `build-essential`, `cmake`, `pkg-config`, `libxkbcommon-dev`, `libwayland-dev`
+- Linux: a C toolchain (`sudo apt install build-essential`). Graphics and window libraries are
+  loaded at runtime, nothing else to install.
 - Windows: Visual Studio Build Tools (C++)
 
 ## Build
@@ -24,6 +22,11 @@ Binaries land in `target/release/`.
 ```sh
 cargo test --workspace
 ```
+
+## Checking the interface
+
+`tools/ui-shot.sh target/debug/copal shot.png [project.copal] [--interact]` starts an app in a virtual
+display and saves a screenshot. Needs `xvfb`, `imagemagick` and, for `--interact`, `xdotool`.
 
 ## Packages
 `cargo deb`, `cargo generate-rpm`, AppImage and Flatpak scripts live in `packaging/`.

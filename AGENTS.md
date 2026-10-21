@@ -110,4 +110,19 @@ The user guide is the GitHub wiki. Edit pages in `wiki/` in this repo — a GitH
 (`.github/workflows/wiki.yml`) publishes them to the wiki on every push to `main`.
 When a feature lands, update its wiki page and remove the "planned" banner.
 
-Code does not exist yet. The planned workspace layout is in `docs/ARCHITECTURE.md`.
+```
+crates/copal-core       document, Command system, undo/redo, text language, .copal files
+crates/copal-mesh       triangle mesh, binary mesh format
+crates/copal-ui-common  theme, crystal borders, widgets, viewport, shared workspace panels
+crates/copal-*          other engine crates (stubs until their milestone)
+apps/copal              full app        apps/copal-lite   Lite        apps/copal-cli   CLI
+tools/ui-shot.sh        screenshot an app in a virtual display (Xvfb) to check the UI
+```
+
+## Working on the code
+
+- Before a commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace`. CI runs the same plus `cargo deny`.
+- UI changes: check them with `tools/ui-shot.sh` (add `--interact` to click and type).
+- Amber is an accent, not a background. Borders use the crystal material from
+  `copal-ui-common::crystal`; colors come from `palette.rs` (same as the logo).

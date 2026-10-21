@@ -1,8 +1,28 @@
 > [!NOTE]
-> 🚧 This page describes a planned feature. It arrives in **Copal 0.1 → 0.4**. Details may change.
+> The basics below work since **Copal 0.0**. Slicing, supports and the interactive shell arrive in 0.1 → 0.4.
 
 
 `copal-cli` can do **everything** the apps can do. You can work with Copal using only a terminal.
+
+## Available now (0.0)
+
+| Command | What it does |
+|---|---|
+| `copal-cli new <file> [--name] [--printer] [--resin]` | Create an empty project |
+| `copal-cli info <file>` | Show the project and its objects |
+| `copal-cli run <file> <command> [key=value …]` | Run one command and save |
+| `copal-cli script <file> <script.copalscript>` | Run a script (one command per line, `#` comments) |
+| `copal-cli commands` | List every command with its arguments |
+
+Add `--json` to any of them for machine-readable output, `--dry-run` to `run` and `script` to test
+without saving.
+
+Commands so far: `object.add_cube`, `object.move`, `object.rotate`, `object.scale`, `object.drop`,
+`object.rename`, `object.remove`, `object.set_transform`, `project.rename`, `project.set_printer`,
+`project.set_resin`. The console inside Copal and Copal Lite understands the same commands, plus
+`undo`, `redo`, `save`, `open`, `new`, `help`.
+
+## Coming next
 
 ## One command
 

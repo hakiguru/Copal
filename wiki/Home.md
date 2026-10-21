@@ -10,8 +10,9 @@
 ---
 
 > [!NOTE]
-> Copal is in the **planning stage**. Nothing is released yet, so most pages here describe
-> how things **will** work. Each page says which version brings it.
+> **Copal 0.0 preview is out** — the foundation: project files, undo/redo, the terminal tool and
+> both apps. It can't slice yet. Most pages here describe how things **will** work; each page says
+> which version brings it.
 
 ## Welcome
 

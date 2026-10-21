@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-f07a12?style=flat-square"></a>
-  <img alt="Status: planning" src="https://img.shields.io/badge/status-planning-b03a06?style=flat-square">
+  <a href="https://github.com/hakiguru/Copal/releases"><img alt="Status: 0.0 preview" src="https://img.shields.io/badge/status-0.0%20preview-b03a06?style=flat-square"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Linux%20%7C%20Windows-fc9e26?style=flat-square">
   <img alt="Written in Rust" src="https://img.shields.io/badge/made%20with-Rust-702004?style=flat-square">
 </p>
@@ -17,8 +17,8 @@
 ---
 
 > [!NOTE]
-> Copal is in the **planning stage**. There is nothing to download yet.
-> Star or watch the repo to follow the progress.
+> **Copal 0.0 is an early preview.** The engine core, project files, the terminal tool and both apps
+> are in place, but Copal **can't slice yet** — that comes in 0.1. Star or watch the repo to follow along.
 
 ## What is Copal?
 
@@ -31,6 +31,10 @@ on every machine, from a gaming PC to an old laptop.
 
 *Copal* is young natural resin, still on its way to becoming amber.
 The logo is a crystal of it.
+
+<p align="center">
+  <img src="assets/screenshots/copal-0.0.png" alt="Copal 0.0 preview: build plate, inspector and console">
+</p>
 
 ## Three ways to use it
 
@@ -88,6 +92,7 @@ The tech design is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 The feature checklist is in [`docs/FEATURES.md`](docs/FEATURES.md).
 The user guide lives in the [wiki](https://github.com/hakiguru/Copal/wiki).
 
+- [x] **0.0** Foundation: command system with undo/redo, project files, CLI, preview apps
 - [ ] **0.1** Engine: load a model, slice it, export `.goo` and `.ctb` from the terminal
 - [ ] **0.2** Copal Lite: first app with a 3D view, layer preview and resin calibration
 - [ ] **0.3** Automatic and manual supports: grid, inline, projection, painting, bracing, rafts
@@ -103,6 +108,32 @@ Resin settings change with the color, the batch and even the room temperature.
 Copal includes a calibration wizard: print one small test, pick the best chip, and save
 settings made for **your** bottle. Built-in presets are just the starting point.
 - [ ] **1.0** Stable release
+
+## Try the preview
+
+**Download:** grab the archive for Linux or Windows from
+[Releases](https://github.com/hakiguru/Copal/releases), unpack it and run `copal`, `copal-lite` or `copal-cli`.
+
+**Build it yourself** (needs [Rust](https://rustup.rs)):
+
+```sh
+git clone https://github.com/hakiguru/Copal
+cd Copal
+cargo run --release -p copal        # full app
+cargo run --release -p copal-lite   # Lite
+cargo run --release -p copal-cli -- --help
+```
+
+**Try the terminal tool:**
+
+```sh
+copal-cli new part.copal --printer elegoo/saturn-4-ultra-16k
+copal-cli run part.copal object.add_cube size=20
+copal-cli run part.copal object.rotate id=1 x=45
+copal-cli run part.copal object.drop id=1
+copal-cli info part.copal
+copal part.copal                     # open it in the app
+```
 
 ## Contributing
 

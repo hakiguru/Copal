@@ -20,17 +20,18 @@ Black-box study of LycheeSlicer and Chitubox, rules in `docs/RESEARCH.md`.
 
 ---
 
-## 0.0 — Foundation
+## 0.0 — Foundation ✅ released
 
-- [ ] Cargo workspace with all crates from `docs/ARCHITECTURE.md` (empty stubs)
-- [ ] GitHub Actions: build + test on Linux and Windows, `cargo fmt`, `clippy`, `cargo deny`
-- [ ] Release workflow: on tag, build everything, create a GitHub Release, attach packages,
+- [x] Cargo workspace with all crates from `docs/ARCHITECTURE.md` (stubs for later ones)
+- [x] GitHub Actions: build + test on Linux and Windows, `cargo fmt`, `clippy`, `cargo deny`
+- [x] Release workflow: on tag, build everything, create a GitHub Release, attach packages,
       take the changelog from `CHANGELOG.md`
-- [ ] `Command` trait, `Document`, undo/redo stack in `copal-core`
-- [ ] `.copal` project file v1 (save / load)
-- [ ] Issue templates: bug, feature, printer test report, resin test report
-
-**Done when:** CI is green on both OSes, a project file round-trips, a test release appears on GitHub.
+- [x] `Command` trait, `Document`, undo/redo stack in `copal-core`
+- [x] Text command language shared by CLI, console and scripts
+- [x] `.copal` project file v1 (save / load)
+- [x] `copal-cli`: `new`, `info`, `run`, `script`, `commands`, `--json`
+- [x] Preview apps: amber theme with crystal borders, simple 3D view, inspector, console
+- [x] Issue templates: bug, feature, printer test report, resin test report
 
 ---
 

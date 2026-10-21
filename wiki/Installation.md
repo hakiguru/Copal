@@ -2,6 +2,10 @@
 > 🚧 This page describes a planned feature. It arrives in **Copal 0.2**. Details may change.
 
 
+**Preview builds (0.0):** download `copal-<version>-linux-x86_64.tar.gz` or
+`copal-<version>-windows-x86_64.zip` from [Releases](https://github.com/hakiguru/Copal/releases), unpack,
+and run `copal`, `copal-lite` or `copal-cli`. The packages below arrive with 0.2.
+
 Copal will ship for **Windows** and **Linux**. Every Linux format exists for both
 **Copal** and **Copal Lite**. The command line tool `copal-cli` is included in both.
 
