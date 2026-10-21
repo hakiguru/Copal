@@ -21,5 +21,5 @@ Your graphics driver may be too old for the full app. Install **Copal Lite**, or
 - Open an issue with the project file and a photo.
 
 ## Reporting a bug
-[Open an issue](https://github.com/hakiguru/copal/issues) and attach: Copal version, OS, the `.copal` project and the log from
+[Open an issue](https://github.com/hakiguru/Copal/issues) and attach: Copal version, OS, the `.copal` project and the log from
 **Help → Open log folder**.

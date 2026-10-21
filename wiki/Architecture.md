@@ -1,5 +1,5 @@
 A short tour. The full design is in
-[docs/ARCHITECTURE.md](https://github.com/hakiguru/copal/blob/main/docs/ARCHITECTURE.md).
+[docs/ARCHITECTURE.md](https://github.com/hakiguru/Copal/blob/main/docs/ARCHITECTURE.md).
 
 - **One engine, three faces.** `copal`, `copal-lite` and `copal-cli` share all logic.
 - **Everything is a command.** Buttons, hotkeys, the console, scripts and undo/redo all use the

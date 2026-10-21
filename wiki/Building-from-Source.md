@@ -10,7 +10,7 @@
 ## Build
 
 ```sh
-git clone https://github.com/hakiguru/copal
+git clone https://github.com/hakiguru/Copal
 cd copal
 cargo build --release -p copal        # full app
 cargo build --release -p copal-lite   # Lite

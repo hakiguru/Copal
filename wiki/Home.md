@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/hakiguru/copal/main/assets/wordmark.png" width="432" alt="Copal">
+  <img src="https://raw.githubusercontent.com/hakiguru/Copal/main/assets/wordmark.png" width="432" alt="Copal">
 </p>
 
 <p align="center">
@@ -22,20 +22,20 @@ This wiki is the user guide. It grows together with the app.
 
 ## Start here
 
-| | |
+| Page | What it covers |
 |---|---|
-| 📦 **[[Installation]]** | Get Copal for Windows or Linux |
-| 🧭 **[[Which edition?|Which-Edition]]** | Copal, Copal Lite or the CLI — which one fits your computer |
-| 🖨️ **[[Your first print|First-Print]]** | From an STL file to a finished print, step by step |
-| 🎯 **[[Calibration wizard|Calibration-Wizard]]** | Find the right exposure for **your** resin bottle |
+| 📦 **[Installation](https://github.com/hakiguru/Copal/wiki/Installation)** | Get Copal for Windows or Linux |
+| 🧭 **[Which edition?](https://github.com/hakiguru/Copal/wiki/Which-Edition)** | Copal, Copal Lite or the CLI — which one fits your computer |
+| 🖨️ **[Your first print](https://github.com/hakiguru/Copal/wiki/First-Print)** | From an STL file to a finished print, step by step |
+| 🎯 **[Calibration wizard](https://github.com/hakiguru/Copal/wiki/Calibration-Wizard)** | Find the right exposure for **your** resin bottle |
 
 ## User guide
 
 | Prepare | Supports & slicing | Reference |
 |---|---|---|
-| [[Interface overview|Interface-Overview]] | [[Supports]] | [[Hotkeys]] |
-| [[Prepare: place and orient|Prepare]] | [[Hollowing and drain holes|Hollowing-and-Drain-Holes]] | [[Command line|Command-Line]] |
-| [[Editing models|Editing]] | [[Slice and export|Slice-and-Export]] | [[Project files|Project-Files]] |
+| [Interface overview](https://github.com/hakiguru/Copal/wiki/Interface-Overview) | [Supports](https://github.com/hakiguru/Copal/wiki/Supports) | [Hotkeys](https://github.com/hakiguru/Copal/wiki/Hotkeys) |
+| [Prepare: place and orient](https://github.com/hakiguru/Copal/wiki/Prepare) | [Hollowing and drain holes](https://github.com/hakiguru/Copal/wiki/Hollowing-and-Drain-Holes) | [Command line](https://github.com/hakiguru/Copal/wiki/Command-Line) |
+| [Editing models](https://github.com/hakiguru/Copal/wiki/Editing) | [Slice and export](https://github.com/hakiguru/Copal/wiki/Slice-and-Export) | [Project files](https://github.com/hakiguru/Copal/wiki/Project-Files) |
 
 ## Printers and resins
 
@@ -56,7 +56,7 @@ This wiki is the user guide. It grows together with the app.
 - [[Architecture]]
 - [[Contributing]]
 - [[Release process|Release-Process]]
-- [Roadmap](https://github.com/hakiguru/copal/blob/main/docs/ROADMAP.md)
+- [Roadmap](https://github.com/hakiguru/Copal/blob/main/docs/ROADMAP.md)
 
 ---
 

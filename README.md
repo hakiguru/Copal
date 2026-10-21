@@ -86,7 +86,7 @@ All three share one engine, so a project made in one opens in the others.
 The full plan lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 The tech design is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 The feature checklist is in [`docs/FEATURES.md`](docs/FEATURES.md).
-The user guide lives in the [wiki](https://github.com/hakiguru/copal/wiki).
+The user guide lives in the [wiki](https://github.com/hakiguru/Copal/wiki).
 
 - [ ] **0.1** Engine: load a model, slice it, export `.goo` and `.ctb` from the terminal
 - [ ] **0.2** Copal Lite: first app with a 3D view, layer preview and resin calibration

@@ -7,7 +7,7 @@ Copal will ship for **Windows** and **Linux**. Every Linux format exists for bot
 
 ## Windows
 
-- **Installer** (`.msi`) — download from [Releases](https://github.com/hakiguru/copal/releases), run, done.
+- **Installer** (`.msi`) — download from [Releases](https://github.com/hakiguru/Copal/releases), run, done.
 - **Portable** (`.zip`) — unpack anywhere and run `copal.exe`. Nothing is installed.
 
 ## Linux
@@ -24,7 +24,7 @@ Copal will ship for **Windows** and **Linux**. Every Linux format exists for bot
 ## Updating
 
 Packages from apt, dnf, AUR and Flatpak update with your system.
-AppImage and portable builds: download the new version from [Releases](https://github.com/hakiguru/copal/releases).
+AppImage and portable builds: download the new version from [Releases](https://github.com/hakiguru/Copal/releases).
 
 ## Uninstalling
 
