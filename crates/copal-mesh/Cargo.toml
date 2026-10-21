@@ -1,0 +1,17 @@
+[package]
+name = "copal-mesh"
+description = "Triangle meshes for Copal: storage, primitives and binary encoding"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+glam.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
