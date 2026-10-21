@@ -71,6 +71,8 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 8. **Tests:** every file format has round-trip tests and a golden sample. Slicing has image tests.
 9. **Languages:** UI in English and Russian from day one (`fluent`). Code, comments and commits in English.
 10. **Commits and changelogs:** short, plain English, ready for GitHub.
+    The author is the project owner only. **Never add AI co-author or session trailers**
+    (`Co-Authored-By: …`, `Claude-Session: …` and similar) to commits, PRs or releases.
 
 ## Releases
 
