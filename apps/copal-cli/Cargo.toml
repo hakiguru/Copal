@@ -1,0 +1,21 @@
+[package]
+name = "copal-cli"
+description = "Copal from the terminal: every feature as a command"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+copal-core.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
