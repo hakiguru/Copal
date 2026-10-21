@@ -26,11 +26,11 @@ CRYSTAL = [
     "....oHHWlLMo....",
     "...olHHHlLMdo...",
     "...oLLLlMMdDo...",
-    "...oWLLlMMdDo...",
-    "...olLLlMMdDo...",
     "...oLLLlMMdDo...",
     "...oLLLlMMdDo...",
-    "...oLLLlMMdLo...",
+    "...oLLLlMMdDo...",
+    "...oLLLlMMdDo...",
+    "...oLLLlMMdDo...",
     "....oMLlMdDo....",
     ".....oMdDDo.....",
     "......odDo......",
@@ -89,6 +89,23 @@ def draw_word(img, text, ox, oy):
     return x
 
 
+def sparkle(img, cx, cy, size):
+    """Draws a 4-point star glint. size 1 = small (3x3 plus), size 2 = big (5x5 plus)."""
+    put(img, cx, cy, 'W')
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        if size == 1:
+            put(img, cx + dx, cy + dy, 'L')
+        else:
+            put(img, cx + dx, cy + dy, 'H')
+            put(img, cx + 2 * dx, cy + 2 * dy, 'L')
+
+
+def draw_crystal(img, ox=0, oy=0):
+    draw_grid(img, CRYSTAL, ox, oy)
+    sparkle(img, ox + 2, oy + 2, 2)    # big glint, top left
+    sparkle(img, ox + 13, oy + 12, 1)  # small glint, bottom right
+
+
 def word_width(text):
     return sum(len(FONT[c][0]) + 1 for c in text) - 1
 
@@ -97,7 +114,7 @@ def main():
     out = sys.argv[1] if len(sys.argv) > 1 else '.'
 
     icon = Image.new('RGBA', (16, 16), (0, 0, 0, 0))
-    draw_grid(icon, CRYSTAL)
+    draw_crystal(icon)
     icon.save(f'{out}/logo-16.png')
     for s in (256, 512):
         icon.resize((s, s), Image.NEAREST).save(f'{out}/logo-{s}.png')
@@ -105,8 +122,9 @@ def main():
     text = 'AMBRA'
     w = 16 + 2 + word_width(text) + 3
     mark = Image.new('RGBA', (w, 16), (0, 0, 0, 0))
-    draw_grid(mark, CRYSTAL)
-    draw_word(mark, text, 16 + 2, 3)
+    draw_crystal(mark)
+    end = draw_word(mark, text, 16 + 2, 3)
+    sparkle(mark, end - 2, 2, 1)  # glint on the last letter
     mark.save(f'{out}/wordmark-1x.png')
     mark.resize((w * 8, 16 * 8), Image.NEAREST).save(f'{out}/wordmark.png')
 

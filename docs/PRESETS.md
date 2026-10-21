@@ -5,10 +5,34 @@ Presets are plain TOML files in `presets/`. Anyone can add a printer or a resin 
 ## Where the data comes from
 
 - Manufacturer spec pages and technical data sheets (TDS).
-- Real test prints by users (exposure tests).
-- **Not** copied from LycheeSlicer, Chitubox or other closed slicers' databases,
+- Manufacturer exposure charts (most resin brands publish settings per printer).
+- Real test prints by users (calibration wizard results, opt-in).
+- **Not** extracted from LycheeSlicer, Chitubox or other closed slicers' databases,
   and not copied from GPL/AGPL projects' profile files.
 - Every value has a source: a link, or "tested by @user on <date>".
+
+Built-in resin presets are **starting points**. Exposure really depends on the printer, the resin
+color, the batch and the room temperature, so the real settings come from the user's own
+calibration (`docs/CALIBRATION.md`) and are saved as a personal preset.
+
+## Personal resin presets
+
+Saved in the user config folder, never overwritten by updates:
+
+```toml
+id = "my/abs-like-pro-2-grey-2410"
+based_on = "anycubic/abs-like-pro-2-grey"
+batch = "2410"
+opened = 2026-10-01
+room_temp_c = 22
+
+[[profiles]]
+printer = "elegoo/saturn-4-ultra-16k"
+layer_height_mm = 0.05
+bottom_exposure_s = 20.0
+exposure_s = 1.5
+calibrated = 2026-10-21      # date of the exposure test
+```
 
 ## Printer preset
 

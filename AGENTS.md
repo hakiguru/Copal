@@ -60,13 +60,26 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 4. **Clean-room.** Do not copy code from GPL/AGPL projects (mslicer, UVtools, PrusaSlicer) or from
    closed slicers (Lychee, Chitubox). Reading public docs about file formats is fine.
    Testing our output with those tools is fine.
-5. **Never decompile or reverse-engineer LycheeSlicer or Chitubox binaries.**
-6. **Presets are our own data**, compiled from manufacturer specs and real test prints, with a
-   source link for every value.
+5. **Never decompile, unpack or reverse-engineer LycheeSlicer or Chitubox binaries**, and never
+   extract their preset databases. Lychee is studied only as a black box: by using it, by its
+   public docs, changelogs and videos, and by looking at the output files it produces from our own
+   test models. We copy *results and behaviour goals*, never code or data. See `docs/RESEARCH.md`.
+6. **Presets are our own data**, compiled from manufacturer specs, manufacturer exposure charts and
+   real test prints, with a source for every value. Resin settings are personal (printer, color,
+   batch, temperature), so the calibration wizard is the main way to get them, not the database.
 7. **Performance matters.** Big models (millions of triangles) and 16K screens are the normal case.
 8. **Tests:** every file format has round-trip tests and a golden sample. Slicing has image tests.
 9. **Languages:** UI in English and Russian from day one (`fluent`). Code, comments and commits in English.
 10. **Commits and changelogs:** short, plain English, ready for GitHub.
+
+## Releases
+
+- Every version (each roadmap milestone and every fix release after it) gets its own commit(s),
+  a git tag `vX.Y.Z` and a **GitHub Release** with a changelog.
+- The changelog is plain English, short bullets, ready to paste, no "see README" pointers.
+  Same text goes to `CHANGELOG.md`.
+- CI attaches all packages to the release (see `docs/ARCHITECTURE.md` → Packaging).
+- Versions before 1.0 are marked as pre-release.
 
 ## Test hardware
 
@@ -84,6 +97,10 @@ docs/ARCHITECTURE.md  crates, data flow, tech choices
 docs/FORMATS.md    printer file formats and priorities
 docs/PRESETS.md    printer and resin database format
 docs/UI.md         layout of both apps and hotkeys
+docs/FEATURES.md   feature checklist vs Lychee Lite / Plus and Chitubox
+docs/RESEARCH.md   how we study Lychee and other slicers (black-box only)
+docs/CALIBRATION.md  calibration wizard: finding exposure for your resin batch
+CHANGELOG.md       release notes
 ```
 
 Code does not exist yet. The planned workspace layout is in `docs/ARCHITECTURE.md`.

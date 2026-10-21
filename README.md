@@ -84,15 +84,22 @@ All three share one engine, so a project made in one opens in the others.
 
 The full plan lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 The tech design is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+The feature checklist is in [`docs/FEATURES.md`](docs/FEATURES.md).
 
 - [ ] **0.1** Engine: load a model, slice it, export `.goo` and `.ctb` from the terminal
-- [ ] **0.2** Ambra Lite: first app with a 3D view and layer preview
-- [ ] **0.3** Automatic and manual supports
+- [ ] **0.2** Ambra Lite: first app with a 3D view, layer preview and resin calibration
+- [ ] **0.3** Automatic and manual supports: grid, inline, projection, painting, bracing, rafts
 - [ ] **0.4** Full Ambra app and Windows builds
-- [ ] **0.5** Orientation, hollowing, arranging, mesh repair
-- [ ] **0.6** Blender-style editing
+- [ ] **0.5** Orientation, hollowing, arranging, mesh repair, multi-plate, one-click prepare
+- [ ] **0.6** Blender-style editing, booleans, cut with keys
 - [ ] **0.7** Large printer and resin database, all major file formats
-- [ ] **0.8** GPU slicing, sending to printer over Wi-Fi, calibration tools
+- [ ] **0.8** GPU slicing, sending to printer over Wi-Fi, advanced calibration
+
+## Calibrate your own resin
+
+Resin settings change with the color, the batch and even the room temperature.
+Ambra includes a calibration wizard: print one small test, pick the best chip, and save
+settings made for **your** bottle. Built-in presets are just the starting point.
 - [ ] **1.0** Stable release
 
 ## Contributing
