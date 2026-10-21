@@ -6,6 +6,7 @@ Each version here is also published as a GitHub Release.
 ## Unreleased
 
 - Renamed the project from Ambra to Copal (new wordmark, same crystal logo)
+- Added the wiki: home page, sidebar and guide pages for the future slicer
 - Added pixel logo and COPAL wordmark with glints, plus the script that draws them
 - Added README with editions, planned features, platforms and roadmap
 - Added MIT license

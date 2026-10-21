@@ -103,9 +103,11 @@ docs/FEATURES.md   feature checklist vs Lychee Lite / Plus and Chitubox
 docs/RESEARCH.md   how we study Lychee and other slicers (black-box only)
 docs/CALIBRATION.md  calibration wizard: finding exposure for your resin batch
 CHANGELOG.md       release notes
+wiki/              wiki pages (published automatically)
 ```
 
-The user guide is the GitHub wiki (separate repo `copal.wiki`). When a feature lands,
-update its wiki page and remove the "planned" banner.
+The user guide is the GitHub wiki. Edit pages in `wiki/` in this repo — a GitHub Action
+(`.github/workflows/wiki.yml`) publishes them to the wiki on every push to `main`.
+When a feature lands, update its wiki page and remove the "planned" banner.
 
 Code does not exist yet. The planned workspace layout is in `docs/ARCHITECTURE.md`.
