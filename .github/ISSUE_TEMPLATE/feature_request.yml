@@ -1,0 +1,20 @@
+name: Feature idea
+description: Suggest something Copal should do.
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: Describe the task, not only the button you imagine.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could Copal help?
+  - type: textarea
+    id: other
+    attributes:
+      label: How do other slicers handle it?
+      description: Optional. Screenshots or links to public docs are welcome.

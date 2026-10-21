@@ -1,0 +1,43 @@
+name: Bug report
+description: Something does not work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+  - type: input
+    id: version
+    attributes:
+      label: Copal version
+      placeholder: "0.0.0 (shown in the status bar or `copal-cli --version`)"
+    validations:
+      required: true
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      options: [Copal, Copal Lite, Copal CLI]
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and graphics
+      placeholder: "Ubuntu 24.04, NVIDIA RTX 3080 Ti / Windows 11, Intel UHD"
+  - type: textarea
+    id: files
+    attributes:
+      label: Files and screenshots
+      description: Attach the .copal project, logs or screenshots if you can.

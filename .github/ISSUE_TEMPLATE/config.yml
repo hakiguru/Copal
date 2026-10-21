@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: User guide (wiki)
+    url: https://github.com/hakiguru/Copal/wiki
+    about: Installation, first print, calibration, troubleshooting.

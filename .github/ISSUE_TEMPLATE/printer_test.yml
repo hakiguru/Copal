@@ -1,0 +1,43 @@
+name: Printer test report
+description: Tell us if Copal works with your printer. One real print helps a lot!
+labels: [printer-test]
+body:
+  - type: input
+    id: printer
+    attributes:
+      label: Printer (brand and model)
+      placeholder: Elegoo Saturn 4 Ultra 16K
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+  - type: input
+    id: format
+    attributes:
+      label: File format
+      placeholder: .goo
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Copal version
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - The printer opened the file and the print came out right
+        - The printer opened the file, but the print had problems
+        - The printer did not open the file
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details and photos
+      description: Photos of the print and the printer screen help the most.

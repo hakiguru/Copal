@@ -1,0 +1,44 @@
+name: Resin calibration result
+description: Share settings that worked for your resin, so others get a better starting point.
+labels: [resin-test]
+body:
+  - type: input
+    id: resin
+    attributes:
+      label: Resin (brand, name, color)
+      placeholder: Anycubic ABS-Like Resin Pro 2, Grey
+    validations:
+      required: true
+  - type: input
+    id: printer
+    attributes:
+      label: Printer
+      placeholder: Elegoo Saturn 4 Ultra 16K
+    validations:
+      required: true
+  - type: input
+    id: layer
+    attributes:
+      label: Layer height (mm)
+      placeholder: "0.05"
+    validations:
+      required: true
+  - type: input
+    id: exposure
+    attributes:
+      label: Normal exposure (s)
+    validations:
+      required: true
+  - type: input
+    id: bottom
+    attributes:
+      label: Bottom exposure (s) and number of bottom layers
+  - type: input
+    id: conditions
+    attributes:
+      label: Batch number, bottle age, room temperature
+      description: Optional, but it explains why settings differ between people.
+  - type: textarea
+    id: photos
+    attributes:
+      label: Photos of the test print
