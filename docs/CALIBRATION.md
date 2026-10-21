@@ -2,7 +2,7 @@
 
 Resin settings depend on everything: printer, resin brand, **color**, batch, room temperature,
 layer height, even the age of the screen. A database can only give a starting point.
-So Ambra treats calibration as a first-class feature, not a hidden tool.
+So Copal treats calibration as a first-class feature, not a hidden tool.
 
 ## Idea
 
@@ -10,7 +10,7 @@ So Ambra treats calibration as a first-class feature, not a hidden tool.
 
 ## Flow
 
-1. **Choose a printer and a resin.** Ambra fills a starting point from presets
+1. **Choose a printer and a resin.** Copal fills a starting point from presets
    (or from the closest similar resin, marked as an estimate).
 2. **Describe the bottle** (optional): color, batch number, opening date, room temperature.
 3. **Print the exposure test.** One plate with several chips, each chip with a different
@@ -18,7 +18,7 @@ So Ambra treats calibration as a first-class feature, not a hidden tool.
 4. **Judge the result.** The wizard shows what to look at on each chip: fine pins, holes,
    positive/negative text, sharp edges. The user picks the best chip.
    Optional: take a photo with the phone — the app can help compare chips.
-5. **Optional XY test.** Print a gauge, measure with calipers, enter the numbers → Ambra computes
+5. **Optional XY test.** Print a gauge, measure with calipers, enter the numbers → Copal computes
    XY compensation and hole compensation.
 6. **Save as "my resin".** A personal preset like
    `Anycubic ABS-Like Pro 2 · Grey · batch 2410 · 22 °C`, with the test date.

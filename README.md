@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/wordmark.png" width="448" alt="Ambra">
+  <img src="assets/wordmark.png" width="432" alt="Copal">
 </p>
 
 <p align="center">
@@ -17,27 +17,28 @@
 ---
 
 > [!NOTE]
-> Ambra is in the **planning stage**. There is nothing to download yet.
+> Copal is in the **planning stage**. There is nothing to download yet.
 > Star or watch the repo to follow the progress.
 
-## What is Ambra?
+## What is Copal?
 
-Ambra is a slicer for MSLA / LCD resin printers. It prepares 3D models for printing:
-you place a model, add supports, and Ambra turns it into a file your printer understands.
+Copal is a slicer for MSLA / LCD resin printers. It prepares 3D models for printing:
+you place a model, add supports, and Copal turns it into a file your printer understands.
 
 Good resin slicers today are closed, show ads, lock features behind a subscription,
-or don't run on Linux at all. Ambra wants to give everyone the full toolset for free,
+or don't run on Linux at all. Copal wants to give everyone the full toolset for free,
 on every machine, from a gaming PC to an old laptop.
 
-*Ambra* means "amber" in Italian. Amber is ancient resin that has turned to stone.
+*Copal* is young natural resin, still on its way to becoming amber.
+The logo is a crystal of it.
 
 ## Three ways to use it
 
 | | Edition | For whom |
 |---|---|---|
-| 🟠 | **Ambra** | The full app. Modern interface, a big 3D viewport, Blender-style model editing. |
-| 🟡 | **Ambra Lite** | The same features in a simple, fast interface. Made for weak laptops with integrated graphics. |
-| ⚫ | **Ambra CLI** | Everything from the terminal. Scripts, batch slicing, servers, no graphics needed. |
+| 🟠 | **Copal** | The full app. Modern interface, a big 3D viewport, Blender-style model editing. |
+| 🟡 | **Copal Lite** | The same features in a simple, fast interface. Made for weak laptops with integrated graphics. |
+| ⚫ | **Copal CLI** | Everything from the terminal. Scripts, batch slicing, servers, no graphics needed. |
 
 All three share one engine, so a project made in one opens in the others.
 
@@ -69,7 +70,7 @@ All three share one engine, so a project made in one opens in the others.
 
 ## Platforms
 
-| | Ambra | Ambra Lite | CLI |
+| | Copal | Copal Lite | CLI |
 |---|:---:|:---:|:---:|
 | Windows (installer, portable) | ✅ | ✅ | ✅ |
 | Linux AppImage | ✅ | ✅ | ✅ |
@@ -87,9 +88,9 @@ The tech design is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 The feature checklist is in [`docs/FEATURES.md`](docs/FEATURES.md).
 
 - [ ] **0.1** Engine: load a model, slice it, export `.goo` and `.ctb` from the terminal
-- [ ] **0.2** Ambra Lite: first app with a 3D view, layer preview and resin calibration
+- [ ] **0.2** Copal Lite: first app with a 3D view, layer preview and resin calibration
 - [ ] **0.3** Automatic and manual supports: grid, inline, projection, painting, bracing, rafts
-- [ ] **0.4** Full Ambra app and Windows builds
+- [ ] **0.4** Full Copal app and Windows builds
 - [ ] **0.5** Orientation, hollowing, arranging, mesh repair, multi-plate, one-click prepare
 - [ ] **0.6** Blender-style editing, booleans, cut with keys
 - [ ] **0.7** Large printer and resin database, all major file formats
@@ -98,7 +99,7 @@ The feature checklist is in [`docs/FEATURES.md`](docs/FEATURES.md).
 ## Calibrate your own resin
 
 Resin settings change with the color, the batch and even the room temperature.
-Ambra includes a calibration wizard: print one small test, pick the best chip, and save
+Copal includes a calibration wizard: print one small test, pick the best chip, and save
 settings made for **your** bottle. Built-in presets are just the starting point.
 - [ ] **1.0** Stable release
 
@@ -109,7 +110,7 @@ If you own a resin printer that is not on the list, your help is gold.
 
 ## License
 
-Ambra is released under the [MIT License](LICENSE). Use it, change it, sell it, ship it —
+Copal is released under the [MIT License](LICENSE). Use it, change it, sell it, ship it —
 anything you like, just keep the copyright notice.
 
 ---
@@ -117,12 +118,12 @@ anything you like, just keep the copyright notice.
 <details>
 <summary><b>🇷🇺 На русском</b></summary>
 
-**Ambra** — бесплатный слайсер с открытым кодом для фотополимерных (MSLA/LCD) 3D-принтеров.
+**Copal** — бесплатный слайсер с открытым кодом для фотополимерных (MSLA/LCD) 3D-принтеров.
 Полный набор функций, без рекламы, без платных подписок и без аккаунтов.
 
-- **Ambra** — полная версия: современный интерфейс и редактирование моделей в стиле Blender.
-- **Ambra Lite** — те же функции в простом и быстром интерфейсе для слабых ноутбуков со встроенной графикой.
-- **Ambra CLI** — всё то же самое из терминала, без графики.
+- **Copal** — полная версия: современный интерфейс и редактирование моделей в стиле Blender.
+- **Copal Lite** — те же функции в простом и быстром интерфейсе для слабых ноутбуков со встроенной графикой.
+- **Copal CLI** — всё то же самое из терминала, без графики.
 
 Сборки для Windows и Linux: AppImage, deb, rpm, AUR, Flatpak.
 Проект на стадии планирования. План — в [`docs/ROADMAP.md`](docs/ROADMAP.md).

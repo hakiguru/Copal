@@ -1,7 +1,7 @@
 # Printer file formats
 
 Resin printers don't share one file format. Each brand (often each board maker) has its own.
-Ambra needs a **writer** for every format to print, and a **reader** to open sliced files
+Copal needs a **writer** for every format to print, and a **reader** to open sliced files
 for inspection and conversion.
 
 ## Priorities

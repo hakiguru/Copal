@@ -1,4 +1,4 @@
-"""Draws the Ambra logo (16x16 pixel crystal) and the wordmark (crystal + AMBRA).
+"""Draws the Copal logo (16x16 pixel crystal) and the wordmark (crystal + COPAL).
 
 Usage: python3 make_logo.py [output_dir]
 Needs Pillow. All art is drawn here by hand, pixel by pixel.
@@ -43,6 +43,10 @@ FONT = {
     'M': ["##...##", "###.###", "#######", "##.#.##", "##...##", "##...##", "##...##", "##...##", "##...##"],
     'B': ["#####.", "##..##", "##..##", "##..##", "#####.", "##..##", "##..##", "##..##", "#####."],
     'R': ["#####.", "##..##", "##..##", "##..##", "#####.", "##.##.", "##..##", "##..##", "##..##"],
+    'C': [".####.", "##..##", "##....", "##....", "##....", "##....", "##....", "##..##", ".####."],
+    'O': [".####.", "##..##", "##..##", "##..##", "##..##", "##..##", "##..##", "##..##", ".####."],
+    'P': ["#####.", "##..##", "##..##", "##..##", "#####.", "##....", "##....", "##....", "##...."],
+    'L': ["##...", "##...", "##...", "##...", "##...", "##...", "##...", "##...", "#####"],
 }
 # Vertical gradient for letters, top to bottom.
 ROW_SHADES = ['H', 'l', 'l', 'L', 'L', 'M', 'M', 'd', 'D']
@@ -119,7 +123,7 @@ def main():
     for s in (256, 512):
         icon.resize((s, s), Image.NEAREST).save(f'{out}/logo-{s}.png')
 
-    text = 'AMBRA'
+    text = 'COPAL'
     w = 16 + 2 + word_width(text) + 3
     mark = Image.new('RGBA', (w, 16), (0, 0, 0, 0))
     draw_crystal(mark)

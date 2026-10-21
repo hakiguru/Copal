@@ -1,6 +1,6 @@
 # Studying other slicers
 
-We want Ambra to be at least as good as LycheeSlicer and Chitubox. We learn from them the
+We want Copal to be at least as good as LycheeSlicer and Chitubox. We learn from them the
 legal way: **as a black box**. We look at what they do, never at how their code does it.
 
 ## Allowed
@@ -40,7 +40,7 @@ One file per topic in `docs/research/`, e.g. `auto-supports-lychee.md`:
 1. Settings used (screenshot).
 2. Input model and its orientation.
 3. Measured output: numbers in a table, pictures.
-4. What we conclude: **the behaviour Ambra should match or beat**, written as a goal,
+4. What we conclude: **the behaviour Copal should match or beat**, written as a goal,
    not as an algorithm copied from them.
 
 Our algorithms are then designed from these goals plus public research papers and our own tests.

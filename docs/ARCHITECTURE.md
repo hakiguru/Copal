@@ -6,21 +6,21 @@ This is the planned design. Nothing here is built yet. Change it when reality di
 
 ```
             ┌──────────────┐  ┌───────────────┐  ┌──────────────────────────┐
-            │    ambra     │  │  ambra-lite   │  │        ambra-cli         │
+            │    copal     │  │  copal-lite   │  │        copal-cli         │
             │ full GUI     │  │ simple GUI    │  │ commands · shell · TUI   │
             │ egui + wgpu  │  │ egui + glow   │  │ clap · ratatui           │
             └──────┬───────┘  └──────┬────────┘  └────────────┬─────────────┘
-                   │   ambra-ui-common (widgets, viewport,    │
+                   │   copal-ui-common (widgets, viewport,    │
                    │   hotkeys, i18n)                          │
                    └──────────────┬────────────────────────────┘
                                   ▼
                     ┌──────────────────────────┐
-                    │        ambra-core         │  project, scene, Command system,
+                    │        copal-core         │  project, scene, Command system,
                     │                           │  undo/redo, settings, jobs
                     └────────────┬──────────────┘
          ┌──────────┬────────────┼────────────┬────────────┬────────────┐
          ▼          ▼            ▼            ▼            ▼            ▼
-    ambra-mesh  ambra-supports ambra-slice ambra-formats ambra-presets ambra-net
+    copal-mesh  copal-supports copal-slice copal-formats copal-presets copal-net
     io, repair, auto/manual    CPU + GPU   .goo .ctb …   printers,     send to
     booleans,   supports,      rasterizer  readers and   resins        printer
     hollowing   islands                    writers
@@ -30,32 +30,32 @@ This is the planned design. Nothing here is built yet. Change it when reality di
 
 | Crate | Job |
 |---|---|
-| `ambra-core` | Project file, scene graph, objects, transforms, settings. **Command system**, undo/redo, background jobs with progress and cancel. |
-| `ambra-mesh` | Mesh type (indexed triangles), import/export (STL, OBJ, 3MF, PLY), repair (holes, normals, non-manifold), booleans, plane cut, decimation, hollowing (voxel/SDF offset), drain holes, edit-mode operations. |
-| `ambra-supports` | Overhang and island detection, support point sampling, auto supports (light/medium/heavy, tree/branch), manual editing, rafts, collision checks. |
-| `ambra-slice` | Turns a scene into layer images. CPU rasterizer (scanline, multithreaded with `rayon`) and GPU path (`wgpu` compute). Anti-aliasing, blur, XY compensation (elephant foot, holes). |
-| `ambra-formats` | One module per printer format: writer first, reader second. Thumbnails, layer encoding (RLE etc.), encryption where needed. |
-| `ambra-presets` | Loads the printer and resin database (`presets/`), user presets, validation. |
-| `ambra-net` | Sending files to printers over the network (SDCP for Elegoo/Chitu boards first). |
-| `ambra-ui-common` | Shared egui widgets, theme, 3D viewport, camera, gizmos, hotkey map, translations. |
-| `ambra` | Full app binary. |
-| `ambra-lite` | Lite app binary. |
-| `ambra-cli` | CLI binary: one-shot commands, interactive shell, script runner, TUI. |
+| `copal-core` | Project file, scene graph, objects, transforms, settings. **Command system**, undo/redo, background jobs with progress and cancel. |
+| `copal-mesh` | Mesh type (indexed triangles), import/export (STL, OBJ, 3MF, PLY), repair (holes, normals, non-manifold), booleans, plane cut, decimation, hollowing (voxel/SDF offset), drain holes, edit-mode operations. |
+| `copal-supports` | Overhang and island detection, support point sampling, auto supports (light/medium/heavy, tree/branch), manual editing, rafts, collision checks. |
+| `copal-slice` | Turns a scene into layer images. CPU rasterizer (scanline, multithreaded with `rayon`) and GPU path (`wgpu` compute). Anti-aliasing, blur, XY compensation (elephant foot, holes). |
+| `copal-formats` | One module per printer format: writer first, reader second. Thumbnails, layer encoding (RLE etc.), encryption where needed. |
+| `copal-presets` | Loads the printer and resin database (`presets/`), user presets, validation. |
+| `copal-net` | Sending files to printers over the network (SDCP for Elegoo/Chitu boards first). |
+| `copal-ui-common` | Shared egui widgets, theme, 3D viewport, camera, gizmos, hotkey map, translations. |
+| `copal` | Full app binary. |
+| `copal-lite` | Lite app binary. |
+| `copal-cli` | CLI binary: one-shot commands, interactive shell, script runner, TUI. |
 
 Planned layout:
 
 ```
-crates/ambra-core/
-crates/ambra-mesh/
-crates/ambra-supports/
-crates/ambra-slice/
-crates/ambra-formats/
-crates/ambra-presets/
-crates/ambra-net/
-crates/ambra-ui-common/
-apps/ambra/
-apps/ambra-lite/
-apps/ambra-cli/
+crates/copal-core/
+crates/copal-mesh/
+crates/copal-supports/
+crates/copal-slice/
+crates/copal-formats/
+crates/copal-presets/
+crates/copal-net/
+crates/copal-ui-common/
+apps/copal/
+apps/copal-lite/
+apps/copal-cli/
 presets/printers/<brand>/<model>.toml
 presets/resins/<brand>/<resin>.toml
 packaging/  (deb, rpm, AUR, AppImage, Flatpak, Windows)
@@ -77,30 +77,30 @@ pub trait Command {
 - Every command has a stable name and serializable arguments (`serde`).
 - GUI buttons and hotkeys build commands. The CLI parses the same commands from text.
 - Undo/redo stores the inverse for each applied command.
-- The built-in console in the GUI, the `ambra-cli shell` REPL and script files (`.ambrascript`)
+- The built-in console in the GUI, the `copal-cli shell` REPL and script files (`.copalscript`)
   all speak the same command language. A user can record a macro in the GUI and run it from the terminal.
 
 ## CLI shape
 
 ```sh
 # One shot
-ambra-cli slice model.stl --printer elegoo/saturn-4-ultra-16k \
+copal-cli slice model.stl --printer elegoo/saturn-4-ultra-16k \
   --resin anycubic/abs-like-pro-2-grey --orient auto --supports medium -o model.goo
 
 # Step by step with a project file
-ambra-cli new part.ambra --printer elegoo/saturn-4-ultra-16k
-ambra-cli add part.ambra model.stl
-ambra-cli run part.ambra supports.auto density=heavy
-ambra-cli export part.ambra -o part.goo
+copal-cli new part.copal --printer elegoo/saturn-4-ultra-16k
+copal-cli add part.copal model.stl
+copal-cli run part.copal supports.auto density=heavy
+copal-cli export part.copal -o part.goo
 
 # Interactive
-ambra-cli shell part.ambra     # REPL with autocomplete
-ambra-cli tui part.ambra       # text UI with layer preview in the terminal
+copal-cli shell part.copal     # REPL with autocomplete
+copal-cli tui part.copal       # text UI with layer preview in the terminal
 ```
 
 `--json` on every command for machine-readable output. Exit codes are documented.
 
-## Project file `.ambra`
+## Project file `.copal`
 
 A zip archive:
 
@@ -115,7 +115,7 @@ Versioned, with migrations. Open in all three editions.
 
 ## Rendering
 
-| | Full (`ambra`) | Lite (`ambra-lite`) |
+| | Full (`copal`) | Lite (`copal-lite`) |
 |---|---|---|
 | Backend | `wgpu`: Vulkan, DX12, OpenGL fallback | `glow`: OpenGL 2.1 / GLES 2+ |
 | No GPU | — | Mesa llvmpipe (software) |
@@ -124,7 +124,7 @@ Versioned, with migrations. Open in all three editions.
 | Animations | Yes | None |
 
 **Lite on a system without a desktop:** run inside `cage` (a tiny Wayland kiosk compositor)
-straight from a TTY: `cage ambra-lite`. If there is no graphics at all, use `ambra-cli tui`.
+straight from a TTY: `cage copal-lite`. If there is no graphics at all, use `copal-cli tui`.
 
 ## Slicing
 
@@ -179,4 +179,4 @@ This is the hardest part of the project. It gets its own research spike before c
 | Flatpak | manifest in `packaging/flatpak/`, later on Flathub |
 
 All builds run in GitHub Actions on every tag. Each Linux format is produced twice:
-`ambra` and `ambra-lite`. `ambra-cli` is inside both and also ships alone as a `.tar.gz`.
+`copal` and `copal-lite`. `copal-cli` is inside both and also ships alone as a `.tar.gz`.

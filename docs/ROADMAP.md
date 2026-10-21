@@ -26,8 +26,8 @@ Black-box study of LycheeSlicer and Chitubox, rules in `docs/RESEARCH.md`.
 - [ ] GitHub Actions: build + test on Linux and Windows, `cargo fmt`, `clippy`, `cargo deny`
 - [ ] Release workflow: on tag, build everything, create a GitHub Release, attach packages,
       take the changelog from `CHANGELOG.md`
-- [ ] `Command` trait, `Document`, undo/redo stack in `ambra-core`
-- [ ] `.ambra` project file v1 (save / load)
+- [ ] `Command` trait, `Document`, undo/redo stack in `copal-core`
+- [ ] `.copal` project file v1 (save / load)
 - [ ] Issue templates: bug, feature, printer test report, resin test report
 
 **Done when:** CI is green on both OSes, a project file round-trips, a test release appears on GitHub.
@@ -45,16 +45,16 @@ Black-box study of LycheeSlicer and Chitubox, rules in `docs/RESEARCH.md`.
 - [ ] `.ctb` writer + reader (start with the unencrypted version)
 - [ ] Thumbnails rendered by a tiny software renderer
 - [ ] Preset loader + first presets: Saturn 4 Ultra 16K, ABS-Like Pro 2 (clear, grey)
-- [ ] `ambra-cli slice`, `ambra-cli info <file>`, PNG layer export
+- [ ] `copal-cli slice`, `copal-cli info <file>`, PNG layer export
 - [ ] Benchmarks: slicing time and memory on a 16K screen
 
-**Done when:** a model sliced by `ambra-cli` prints correctly on the Saturn 4 Ultra 16K.
+**Done when:** a model sliced by `copal-cli` prints correctly on the Saturn 4 Ultra 16K.
 
 ---
 
-## 0.2 — Ambra Lite + calibration
+## 0.2 — Copal Lite + calibration
 
-- [ ] `ambra-ui-common`: theme, 3D viewport, build plate grid
+- [ ] `copal-ui-common`: theme, 3D viewport, build plate grid
 - [ ] Lite renderer on `glow`, tested on OpenGL 2.1 and llvmpipe
 - [ ] Load models, select, move/rotate/scale with gizmos and number fields
 - [ ] Printer and resin pickers
@@ -63,7 +63,7 @@ Black-box study of LycheeSlicer and Chitubox, rules in `docs/RESEARCH.md`.
 - [ ] **Exposure test generator + "pick the best chip" + save personal resin preset**
       (`docs/CALIBRATION.md`), in Lite and CLI
 - [ ] English + Russian UI
-- [ ] Packaging: AppImage, `.deb`, `.rpm`, AUR, `.tar.gz` for `ambra-lite` and `ambra-cli`
+- [ ] Packaging: AppImage, `.deb`, `.rpm`, AUR, `.tar.gz` for `copal-lite` and `copal-cli`
 - [ ] Guide: running Lite from a TTY with `cage`
 
 **Done when:** a user on a weak laptop with integrated graphics calibrates a resin, slices and exports.
@@ -91,12 +91,12 @@ and match or beat the recorded Lychee results.
 
 ---
 
-## 0.4 — Ambra, the full app
+## 0.4 — Copal, the full app
 
 - [ ] Layout from `docs/UI.md`: top bar, workflow tabs, tool shelf, inspector, layer timeline
 - [ ] `wgpu` renderer: resin-like material, SSAO, outlines, selection highlight
 - [ ] Undo/redo history panel
-- [ ] Built-in console panel (same command language as the CLI), macro recording → `.ambrascript`
+- [ ] Built-in console panel (same command language as the CLI), macro recording → `.copalscript`
 - [ ] Hotkey map (Blender-like by default, editable)
 - [ ] Autosave and local backups
 - [ ] Reload model when its file changes on disk
@@ -159,7 +159,7 @@ and match or beat the recorded Lychee results.
 - [ ] XY gauge, bottom exposure test, temperature notes in the calibration wizard
 - [ ] Per-layer settings, multi-exposure, variable layer height
 - [ ] Open, edit and convert existing sliced files
-- [ ] `ambra-cli tui` with layer preview in the terminal (sixel / kitty graphics)
+- [ ] `copal-cli tui` with layer preview in the terminal (sixel / kitty graphics)
 
 ---
 

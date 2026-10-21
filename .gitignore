@@ -1,6 +1,6 @@
 /target
 **/*.rs.bk
-*.ambra.tmp
+*.copal.tmp
 .idea/
 .vscode/
 .DS_Store

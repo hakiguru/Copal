@@ -104,7 +104,7 @@ source = "tested by @hakiguru, 2026"
 ## Rules
 
 - IDs are `brand/model` in lowercase kebab-case and never change once released.
-- A missing exposure profile for a printer → Ambra suggests running an exposure test and
+- A missing exposure profile for a printer → Copal suggests running an exposure test and
   estimates from similar printers (marked as an estimate).
 - Users can save their own presets; they live in the user config folder and override built-ins.
 - CI validates every preset file (schema, ranges, source present).

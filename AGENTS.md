@@ -1,11 +1,11 @@
-# Ambra — project context
+# Copal — project context
 
-This file is the shared context for anyone working on Ambra: people and AI coding agents.
+This file is the shared context for anyone working on Copal: people and AI coding agents.
 Read it before changing anything. Keep it short and up to date.
 
 ## What we are building
 
-Ambra is a free, open-source (MIT) slicer for MSLA / LCD resin 3D printers.
+Copal is a free, open-source (MIT) slicer for MSLA / LCD resin 3D printers.
 
 - **Design** feels like LycheeSlicer: dark, clean, modern, a big viewport, a clear
   step-by-step workflow (Prepare → Supports → Slice & Export).
@@ -14,18 +14,18 @@ Ambra is a free, open-source (MIT) slicer for MSLA / LCD resin 3D printers.
 - **Editing** works like Blender: Object mode and Edit mode, G/R/S hotkeys, axis locks,
   modifiers, full undo/redo.
 - **Terminal**: everything the GUI can do, the CLI can do too. A user must be able to work
-  with Ambra using only the terminal.
+  with Copal using only the terminal.
 - **No ads, no accounts, no telemetry, no paywalls. Ever.**
 
 ## The three editions
 
 | Binary | What it is | Targets |
 |---|---|---|
-| `ambra` | Full GUI | Windows, Linux |
-| `ambra-lite` | Simple, fast GUI with the same features | Linux first (Windows too, cheap to add) |
-| `ambra-cli` | Command line, interactive shell and TUI | Everywhere, ships inside both packages |
+| `copal` | Full GUI | Windows, Linux |
+| `copal-lite` | Simple, fast GUI with the same features | Linux first (Windows too, cheap to add) |
+| `copal-cli` | Command line, interactive shell and TUI | Everywhere, ships inside both packages |
 
-**Ambra Lite rules:** same engine and same features as the full app. Only the presentation is
+**Copal Lite rules:** same engine and same features as the full app. Only the presentation is
 cut down: no animations, no fancy materials, no heavy effects, simple panels like mslicer.
 It must run on an old laptop with integrated graphics, on OpenGL 2.1 / GLES 2, with software
 rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
@@ -34,8 +34,8 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 ## Packaging targets
 
 - **Windows:** installer (`.msi`) and portable `.zip`.
-- **Linux:** AppImage, `.deb`, `.rpm`, AUR (`ambra-bin`, `ambra-lite-bin`, `ambra-git`), Flatpak, `.tar.gz`.
-- Both `ambra` and `ambra-lite` get every Linux format.
+- **Linux:** AppImage, `.deb`, `.rpm`, AUR (`copal-bin`, `copal-lite-bin`, `copal-git`), Flatpak, `.tar.gz`.
+- Both `copal` and `copal-lite` get every Linux format.
 
 ## Presets
 
@@ -52,7 +52,7 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 
 ## Ground rules
 
-1. **One action system.** Every user action is a `Command` in `ambra-core`. GUI buttons, hotkeys,
+1. **One action system.** Every user action is a `Command` in `copal-core`. GUI buttons, hotkeys,
    the CLI, the built-in console and undo/redo all go through it. No feature lives only in the GUI.
 2. **Engine first.** Logic lives in library crates. GUI crates only draw and dispatch commands.
 3. **Permissive dependencies only:** MIT, Apache-2.0, BSD, ISC, Zlib, MPL-2.0 (as a library).

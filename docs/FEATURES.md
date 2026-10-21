@@ -4,7 +4,7 @@ Goal: everything that LycheeSlicer **Lite + Plus** and **Chitubox** offer, free,
 The Lychee list comes from its public pricing page (Lychee Slicer 8, October 2026).
 "Milestone" points to `docs/ROADMAP.md`.
 
-Legend: **L** = Lychee Lite (free), **P** = Lychee Plus (paid), **C** = Chitubox, **A** = Ambra extra.
+Legend: **L** = Lychee Lite (free), **P** = Lychee Plus (paid), **C** = Chitubox, **A** = Copal extra.
 
 ## General
 

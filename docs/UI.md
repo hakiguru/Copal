@@ -7,7 +7,7 @@ All icons, art and wording are our own.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────┐
-│ ◆ AMBRA   File Edit View   │ Printer: Saturn 4 Ultra 16K ▾ │ Resin: ABS-Like ▾ │
+│ ◆ COPAL   File Edit View   │ Printer: Saturn 4 Ultra 16K ▾ │ Resin: ABS-Like ▾ │
 ├──────────┬────────────────────────────────────────────────────────┬───────────┤
 │ PREPARE  │                                                        │ Inspector │
 │ SUPPORTS │                                                        │           │
@@ -30,7 +30,7 @@ All icons, art and wording are our own.
 - **Bottom bar:** console (collapsible) and the layer slider after slicing.
 - **Theme:** dark by default, amber accent from the logo, light theme available.
 
-## Ambra Lite — layout
+## Copal Lite — layout
 
 Like mslicer: one window, plain panels, no animations.
 
