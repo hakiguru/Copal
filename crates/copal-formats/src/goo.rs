@@ -57,7 +57,9 @@ impl Preview {
     /// From 8-bit RGB pixels.
     pub fn from_rgb(width: u32, height: u32, rgb: &[u8]) -> Self {
         let rgb565 = rgb
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|p| ((p[0] as u16 >> 3) << 11) | ((p[1] as u16 >> 2) << 5) | (p[2] as u16 >> 3))
             .collect();
         Self {
@@ -554,8 +556,10 @@ impl<R: Read> In<R> {
             width: size,
             height: size,
             rgb565: b
-                .chunks_exact(2)
-                .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_be_bytes(*c))
                 .collect(),
         })
     }
