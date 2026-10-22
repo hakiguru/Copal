@@ -1,0 +1,27 @@
+id = "elegoo/saturn-4-ultra-16k"
+brand = "Elegoo"
+model = "Saturn 4 Ultra 16K"
+status = "experimental"          # becomes "stable" after the first print sliced by Copal
+
+[screen]
+resolution = [15120, 6230]       # pixels, X × Y
+size_mm = [211.68, 118.37]       # display area
+mirror_x = false
+mirror_y = true                  # slicers write the image mirrored in Y for this printer
+greyscale_bits = 8
+
+[build]
+height_mm = 220.0
+
+[file]
+format = "goo"
+format_version = "V3.0"
+thumbnails = [[116, 116], [290, 290]]
+anti_aliasing_levels = 8
+
+[motion]
+supports_tsmc = true             # two-stage lift and retract
+
+[sources]
+values = "Read from the header of .goo files the owner printed successfully (2026-09 / 2026-10)"
+spec = "https://github.com/elegooofficial/GOO (Goo Format Spec V1.2)"
