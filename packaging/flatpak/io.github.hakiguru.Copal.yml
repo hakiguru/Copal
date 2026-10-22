@@ -1,0 +1,30 @@
+# Flatpak bundle of Copal, built from the release binaries by .github/workflows/release.yml.
+# CI puts the binaries and data files into packaging/flatpak/files/ before building.
+# (A from-source manifest for Flathub comes later, see docs/ROADMAP.md.)
+app-id: io.github.hakiguru.Copal
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: copal
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Open and save models and sliced files anywhere in your home folder.
+  - --filesystem=home
+modules:
+  - name: copal
+    buildsystem: simple
+    sources:
+      - type: dir
+        path: files
+    build-commands:
+      - install -Dm755 copal copal-lite copal-cli -t /app/bin
+      - install -Dm644 io.github.hakiguru.Copal.desktop -t /app/share/applications
+      - install -Dm644 io.github.hakiguru.Copal.Lite.desktop -t /app/share/applications
+      - install -Dm644 logo-256.png /app/share/icons/hicolor/256x256/apps/io.github.hakiguru.Copal.png
+      - install -Dm644 logo-256.png /app/share/icons/hicolor/256x256/apps/io.github.hakiguru.Copal.Lite.png
+      - install -Dm644 logo-512.png /app/share/icons/hicolor/512x512/apps/io.github.hakiguru.Copal.png
+      - install -Dm644 io.github.hakiguru.Copal.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 io.github.hakiguru.Copal.mime.xml /app/share/mime/packages/io.github.hakiguru.Copal.xml

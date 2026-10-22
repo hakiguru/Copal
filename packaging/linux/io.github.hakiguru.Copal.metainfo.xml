@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.hakiguru.Copal</id>
+  <name>Copal</name>
+  <summary>Free slicer for resin 3D printers</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.hakiguru">
+    <name>hakiguru</name>
+  </developer>
+  <description>
+    <p>
+      Copal prepares 3D models for MSLA / LCD resin printers: place a model, add supports,
+      slice it and export a file your printer understands. No ads, no paywalls, no accounts.
+    </p>
+    <p>Copal comes with a full app, Copal Lite for weak computers, and a terminal tool.</p>
+  </description>
+  <launchable type="desktop-id">io.github.hakiguru.Copal.desktop</launchable>
+  <url type="homepage">https://github.com/hakiguru/Copal</url>
+  <url type="bugtracker">https://github.com/hakiguru/Copal/issues</url>
+  <url type="help">https://github.com/hakiguru/Copal/wiki</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/hakiguru/Copal/main/assets/screenshots/copal-dark.png</image>
+      <caption>The main window with the default dark theme</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/hakiguru/Copal/main/assets/screenshots/copal-light.png</image>
+      <caption>Light mode</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>copal</binary>
+    <binary>copal-lite</binary>
+    <binary>copal-cli</binary>
+  </provides>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

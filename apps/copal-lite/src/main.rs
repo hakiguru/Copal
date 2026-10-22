@@ -130,7 +130,7 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Copal Lite")
-            .with_app_id("io.github.hakiguru.CopalLite")
+            .with_app_id("io.github.hakiguru.Copal.Lite")
             .with_inner_size([1180.0, 760.0])
             .with_min_inner_size([800.0, 520.0])
             .with_icon(copal_ui_common::look::icon()),

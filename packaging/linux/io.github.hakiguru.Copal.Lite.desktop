@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Copal Lite
+GenericName=Resin 3D printing slicer (light version)
+Comment=Copal in a simple, fast interface for weak computers
+Exec=copal-lite %f
+Icon=io.github.hakiguru.Copal.Lite
+Terminal=false
+Categories=Graphics;3DGraphics;Engineering;
+Keywords=3D;printing;printer;resin;slicer;MSLA;SLA;LCD;lite;
+MimeType=application/x-copal-project;
+StartupWMClass=io.github.hakiguru.Copal.Lite

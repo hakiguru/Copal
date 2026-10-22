@@ -45,19 +45,11 @@ jobs:
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
 
-  build:
-    name: Build (${{ matrix.target }})
+  linux:
+    name: Linux packages
     needs: check
     if: needs.check.outputs.release == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04 # older glibc, so the binaries run on more distros
-            target: linux-x86_64
-          - os: windows-latest
-            target: windows-x86_64
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04 # older glibc, so the binaries run on more distros
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
@@ -66,31 +58,94 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --release -p copal -p copal-lite -p copal-cli
-      - name: Package (Linux)
-        if: runner.os == 'Linux'
+      - name: Tools for packaging
         run: |
-          DIR="copal-$VERSION-${{ matrix.target }}"
-          mkdir "$DIR"
-          cp target/release/copal target/release/copal-lite target/release/copal-cli README.md LICENSE "$DIR/"
-          tar czf "$DIR.tar.gz" "$DIR"
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
+          sudo apt-get update -q
+          sudo apt-get install -y -q rpm
+          curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+      - name: Packages (deb, rpm, AppImage, tar.gz, PKGBUILD)
+        run: APPIMAGETOOL=$PWD/appimagetool packaging/linux/build-packages.sh "$VERSION" target/release dist
+      - name: Files for the Flatpak bundle
         run: |
-          $dir = "copal-$env:VERSION-${{ matrix.target }}"
-          New-Item -ItemType Directory $dir | Out-Null
-          Copy-Item target/release/copal.exe, target/release/copal-lite.exe, target/release/copal-cli.exe, README.md, LICENSE $dir
-          Compress-Archive -Path $dir -DestinationPath "$dir.zip"
+          F=packaging/flatpak/files
+          mkdir -p $F
+          cp target/release/copal target/release/copal-lite target/release/copal-cli $F/
+          cp packaging/linux/*.desktop packaging/linux/*.mime.xml assets/logo-256.png assets/logo-512.png $F/
+          sed -e "s/@VERSION@/$VERSION/" -e "s/@DATE@/$(date -u +%Y-%m-%d)/" \
+            packaging/linux/io.github.hakiguru.Copal.metainfo.xml > $F/io.github.hakiguru.Copal.metainfo.xml
+          tar -C packaging -czf flatpak-input.tar.gz flatpak
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}
-          path: |
-            copal-*.tar.gz
-            copal-*.zip
+          name: linux
+          path: dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-input
+          path: flatpak-input.tar.gz
+
+  flatpak:
+    name: Flatpak bundle
+    needs: [check, linux]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak-input
+      - run: tar xzf flatpak-input.tar.gz
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/io.github.hakiguru.Copal.yml
+          bundle: copal-${{ needs.check.outputs.version }}.flatpak
+          upload-artifact: false
+          cache: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak
+          path: copal-*.flatpak
+
+  windows:
+    name: Windows installer
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release -p copal -p copal-lite -p copal-cli
+      - name: Portable files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item target/release/copal.exe "dist/Copal-$env:VERSION-portable.exe"
+          Copy-Item target/release/copal-lite.exe "dist/Copal-Lite-$env:VERSION-portable.exe"
+          $dir = "copal-$env:VERSION-windows-x86_64"
+          New-Item -ItemType Directory $dir | Out-Null
+          Copy-Item target/release/copal.exe, target/release/copal-lite.exe, target/release/copal-cli.exe, README.md, LICENSE $dir
+          Compress-Archive -Path $dir -DestinationPath "dist/$dir.zip"
+      - name: Installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup --no-progress -y }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=$env:VERSION" "/DBinDir=$PWD\target\release" "/DOutDir=$PWD\dist" packaging\windows\copal.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
 
   publish:
     name: Publish the release
-    needs: [check, build]
+    needs: [check, linux, windows, flatpak]
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -98,19 +153,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          name: linux
           path: dist
-          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak
+          path: dist
       - name: Release notes from CHANGELOG.md
         run: |
           awk -v v="$VERSION" '
             /^## / { if (found) exit; if ($2 == v) { found = 1; next } }
             found { print }
           ' CHANGELOG.md > notes.md
+          cat packaging/release-notes-footer.md >> notes.md
           cat notes.md
       - name: Create the tag and the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ls -la dist
           gh release create "v$VERSION" dist/* \
             --target "$GITHUB_SHA" \
             --title "Copal $VERSION" \
