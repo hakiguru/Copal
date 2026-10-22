@@ -5,9 +5,8 @@
 // No console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use copal_core::Session;
-use copal_ui_common::crystal::{Border, paint_border};
-use copal_ui_common::palette::ink;
+use copal_core::{Session, Settings};
+use copal_ui_common::look::{Edge, State};
 use copal_ui_common::workspace::{LineKind, Step};
 use copal_ui_common::{Edition, Look, Workspace, widgets};
 use eframe::egui::{self, CentralPanel, Frame, Margin, Panel, ScrollArea, Ui, ViewportCommand};
@@ -20,7 +19,11 @@ struct LiteApp {
 
 impl eframe::App for LiteApp {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+        if self.ws.take_settings_changed() {
+            self.look.apply(ui.ctx(), &self.ws.settings);
+        }
         let look = &self.look;
+        let p = look.pal;
         let ws = &mut self.ws;
         ws.hotkeys(ui);
         let title = ws.title().replace("— Copal", "— Copal Lite");
@@ -33,7 +36,7 @@ impl eframe::App for LiteApp {
         Panel::top("menu")
             .frame(
                 Frame::new()
-                    .fill(ink::BASE)
+                    .fill(p.base)
                     .inner_margin(Margin::symmetric(8, 4)),
             )
             .show(ui, |ui| {
@@ -44,6 +47,9 @@ impl eframe::App for LiteApp {
                         }
                         if ui.button("Save   Ctrl+S").clicked() {
                             ws.run("save");
+                        }
+                        if ui.button("Settings…   Ctrl+,").clicked() {
+                            ws.show_settings = true;
                         }
                         if ui.button("Quit").clicked() {
                             ui.ctx().send_viewport_cmd(ViewportCommand::Close);
@@ -68,46 +74,54 @@ impl eframe::App for LiteApp {
         Panel::bottom("status")
             .frame(
                 Frame::new()
-                    .fill(ink::BASE)
+                    .fill(p.base)
                     .inner_margin(Margin::symmetric(8, 3)),
             )
             .show(ui, |ui| {
-                ui.horizontal(|ui| ws.status_line(ui));
+                ui.horizontal(|ui| ws.status_line(ui, look));
             });
 
+        let console_fill = if look.art() { p.panel } else { p.term_bg };
         let console = Panel::bottom("console")
-            .exact_size(110.0)
-            .frame(Frame::new().fill(ink::PANEL).inner_margin(Margin::same(8)))
-            .show(ui, |ui| ws.console_panel(ui));
+            .exact_size(120.0)
+            .frame(
+                Frame::new()
+                    .fill(console_fill)
+                    .inner_margin(Margin::same(8)),
+            )
+            .show(ui, |ui| ws.console_panel(ui, look));
 
         let side = Panel::left("side")
             .exact_size(280.0)
-            .frame(Frame::new().fill(ink::PANEL).inner_margin(Margin::same(10)))
+            .frame(Frame::new().fill(p.panel).inner_margin(Margin::same(10)))
             .show(ui, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     widgets::wordmark(ui, look, 32.0);
                     ui.add_space(4.0);
-                    ws.printer_resin_pickers(ui);
-                    widgets::section(ui, "Objects");
-                    ws.scene_list(ui);
-                    widgets::section(ui, "Transform");
-                    ws.inspector(ui);
+                    ws.printer_resin_pickers(ui, look);
+                    widgets::section(ui, look, "Objects");
+                    ws.scene_list(ui, look);
+                    widgets::section(ui, look, "Transform");
+                    ws.inspector(ui, look);
+                    let current = ws.step;
                     for step in [Step::Prepare, Step::Supports, Step::Slice] {
                         ws.step = step;
                         ws.tool_shelf(ui, look);
                     }
-                    ws.step = Step::Prepare;
+                    ws.step = current;
                 });
             });
 
         CentralPanel::default()
-            .frame(Frame::new().fill(ink::VOID))
-            .show(ui, |ui| ws.viewport(ui, false));
+            .frame(Frame::new().fill(p.void))
+            .show(ui, |ui| ws.viewport(ui, look));
 
         let painter = ui.painter();
         for rect in [side.response.rect, console.response.rect] {
-            paint_border(painter, look.crystal.id(), rect.shrink(1.0), Border::PANEL);
+            look.outline(painter, rect.shrink(1.0), Edge::Panel, State::Idle);
         }
+
+        ws.settings_window(ui.ctx(), look);
     }
 }
 
@@ -129,8 +143,9 @@ fn main() -> eframe::Result {
         "Copal Lite",
         options,
         Box::new(move |cc| {
-            let look = Look::new(&cc.egui_ctx, Edition::Lite);
-            let mut ws = Workspace::default();
+            let settings = Settings::load_or_default();
+            let look = Look::new(&cc.egui_ctx, Edition::Lite, &settings);
+            let mut ws = Workspace::new(settings);
             if let Some(path) = file {
                 match Session::open(path.as_ref()) {
                     Ok(s) => {

@@ -1,5 +1,8 @@
 //! Colors. The amber tones are the same as in the logo (`assets/make_logo.py`).
+//!
+//! [`Palette`] is the set of colors one theme uses; widgets never hard-code colors.
 
+use copal_core::{ColorMode, Settings, ThemeStyle};
 use egui::Color32;
 
 /// Amber tones from dark to bright, exactly as in the logo.
@@ -18,30 +21,182 @@ pub mod amber {
     pub const RAMP: [Color32; 7] = [DEEP, SHADOW, MID, LIGHT, LIGHTER, HIGHLIGHT, GLINT];
 }
 
-/// Warm, quiet neutrals. Most of the interface uses these; amber is only an accent.
+/// Warm browns of the art theme.
 pub mod ink {
     use egui::Color32;
-    /// Behind everything (viewport background).
     pub const VOID: Color32 = Color32::from_rgb(16, 13, 11);
-    /// Main background.
     pub const BASE: Color32 = Color32::from_rgb(24, 20, 17);
-    /// Panels.
     pub const PANEL: Color32 = Color32::from_rgb(31, 26, 22);
-    /// Buttons and fields.
     pub const RAISED: Color32 = Color32::from_rgb(42, 35, 29);
-    /// Hovered buttons.
     pub const RAISED_HOVER: Color32 = Color32::from_rgb(54, 44, 35);
-    /// Thin separators.
     pub const LINE: Color32 = Color32::from_rgb(58, 47, 38);
     pub const TEXT: Color32 = Color32::from_rgb(239, 228, 214);
     pub const TEXT_WEAK: Color32 = Color32::from_rgb(168, 153, 138);
     pub const TEXT_FAINT: Color32 = Color32::from_rgb(112, 100, 89);
     pub const ERROR: Color32 = Color32::from_rgb(240, 96, 80);
-    pub const OK: Color32 = Color32::from_rgb(150, 200, 120);
 }
 
 /// Scales a color's brightness (0 = black, 1 = unchanged). Alpha is kept.
 pub fn shade(c: Color32, factor: f32) -> Color32 {
     let f = |v: u8| (v as f32 * factor).round().clamp(0.0, 255.0) as u8;
     Color32::from_rgba_premultiplied(f(c.r()), f(c.g()), f(c.b()), c.a())
+}
+
+const fn rgb(r: u8, g: u8, b: u8) -> Color32 {
+    Color32::from_rgb(r, g, b)
+}
+
+/// All colors of one theme.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Palette {
+    pub dark: bool,
+    /// 3D view background.
+    pub void: Color32,
+    /// Top bar and status bar.
+    pub base: Color32,
+    pub panel: Color32,
+    /// Buttons and fields.
+    pub raised: Color32,
+    pub raised_hover: Color32,
+    pub pressed: Color32,
+    /// Separators.
+    pub line: Color32,
+    pub text: Color32,
+    pub text_weak: Color32,
+    pub text_faint: Color32,
+    /// Outlines of windows and buttons.
+    pub accent: Color32,
+    pub accent_hover: Color32,
+    /// Text drawn in the accent color (selected tab, primary button).
+    pub accent_text: Color32,
+    pub primary_fill: Color32,
+    pub primary_fill_hover: Color32,
+    /// Background of selected list rows and text selection.
+    pub selection: Color32,
+    pub error: Color32,
+    // 3D view
+    pub plate: Color32,
+    pub plate_edge: Color32,
+    pub grid: Color32,
+    pub volume: Color32,
+    pub object: Color32,
+    pub object_selected: Color32,
+    // Terminal
+    pub term_bg: Color32,
+    pub term_fg: Color32,
+    pub term_user: Color32,
+    pub term_path: Color32,
+    pub term_error: Color32,
+}
+
+/// The logo orange, used for outlines in the default theme.
+const ORANGE: Color32 = amber::MID;
+
+impl Palette {
+    pub fn for_settings(s: &Settings) -> Self {
+        match (s.theme, s.effective_mode()) {
+            (ThemeStyle::Art, _) => Self::ART,
+            (ThemeStyle::Default, ColorMode::Dark) => Self::DARK,
+            (ThemeStyle::Default, ColorMode::Light) => Self::LIGHT,
+        }
+    }
+
+    /// Neutral dark, like the dark themes of IDEs and chat apps.
+    pub const DARK: Self = Self {
+        dark: true,
+        void: rgb(30, 31, 34),
+        base: rgb(35, 36, 39),
+        panel: rgb(43, 45, 48),
+        raised: rgb(54, 56, 60),
+        raised_hover: rgb(66, 68, 73),
+        pressed: rgb(47, 49, 52),
+        line: rgb(60, 62, 66),
+        text: rgb(223, 225, 229),
+        text_weak: rgb(157, 160, 168),
+        text_faint: rgb(111, 115, 122),
+        accent: ORANGE,
+        accent_hover: amber::LIGHT,
+        accent_text: rgb(247, 150, 62),
+        primary_fill: rgb(54, 56, 60),
+        primary_fill_hover: rgb(66, 68, 73),
+        selection: Color32::from_rgba_premultiplied(60, 31, 5, 64),
+        error: rgb(240, 96, 80),
+        plate: rgb(40, 42, 45),
+        plate_edge: rgb(200, 100, 18),
+        grid: rgb(56, 58, 62),
+        volume: Color32::from_rgba_premultiplied(36, 37, 40, 64),
+        object: rgb(172, 176, 183),
+        object_selected: ORANGE,
+        term_bg: rgb(24, 25, 27),
+        term_fg: rgb(210, 212, 216),
+        term_user: rgb(115, 201, 90),
+        term_path: rgb(114, 159, 207),
+        term_error: rgb(240, 96, 80),
+    };
+
+    /// Neutral light: white and cool greys, no brown.
+    pub const LIGHT: Self = Self {
+        dark: false,
+        void: rgb(236, 238, 241),
+        base: rgb(247, 248, 250),
+        panel: rgb(255, 255, 255),
+        raised: rgb(255, 255, 255),
+        raised_hover: rgb(243, 244, 246),
+        pressed: rgb(232, 234, 237),
+        line: rgb(222, 224, 228),
+        text: rgb(30, 31, 34),
+        text_weak: rgb(95, 99, 110),
+        text_faint: rgb(150, 155, 165),
+        accent: rgb(232, 112, 10),
+        accent_hover: rgb(245, 135, 25),
+        accent_text: rgb(196, 90, 0),
+        primary_fill: rgb(255, 255, 255),
+        primary_fill_hover: rgb(255, 245, 235),
+        selection: Color32::from_rgba_premultiplied(42, 21, 2, 44),
+        error: rgb(200, 40, 30),
+        plate: rgb(252, 252, 253),
+        plate_edge: rgb(232, 112, 10),
+        grid: rgb(222, 225, 230),
+        volume: Color32::from_rgba_premultiplied(70, 74, 82, 70),
+        object: rgb(160, 165, 173),
+        object_selected: ORANGE,
+        term_bg: rgb(255, 255, 255),
+        term_fg: rgb(30, 31, 34),
+        term_user: rgb(38, 130, 30),
+        term_path: rgb(30, 90, 180),
+        term_error: rgb(200, 40, 30),
+    };
+
+    /// Warm amber with crystal borders.
+    pub const ART: Self = Self {
+        dark: true,
+        void: ink::VOID,
+        base: ink::BASE,
+        panel: ink::PANEL,
+        raised: ink::RAISED,
+        raised_hover: ink::RAISED_HOVER,
+        pressed: rgb(34, 28, 23),
+        line: ink::LINE,
+        text: ink::TEXT,
+        text_weak: ink::TEXT_WEAK,
+        text_faint: ink::TEXT_FAINT,
+        accent: amber::MID,
+        accent_hover: amber::LIGHT,
+        accent_text: amber::HIGHLIGHT,
+        primary_fill: rgb(56, 19, 2),
+        primary_fill_hover: rgb(74, 24, 3),
+        selection: rgb(132, 44, 4),
+        error: ink::ERROR,
+        plate: ink::BASE,
+        plate_edge: rgb(141, 46, 5),
+        grid: ink::LINE,
+        volume: Color32::from_rgba_premultiplied(19, 16, 13, 40),
+        object: rgb(196, 184, 170),
+        object_selected: amber::LIGHT,
+        term_bg: ink::PANEL,
+        term_fg: ink::TEXT_WEAK,
+        term_user: amber::LIGHTER,
+        term_path: amber::LIGHT,
+        term_error: ink::ERROR,
+    };
 }

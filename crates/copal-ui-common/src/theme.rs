@@ -1,81 +1,98 @@
-//! The Copal look: warm dark neutrals, amber only as an accent.
+//! Turns a [`Palette`] into egui styles.
 
+use copal_core::{Settings, ThemeStyle};
 use egui::{Color32, Context, CornerRadius, Margin, Shadow, Stroke, Style, Theme, Visuals, vec2};
 
-use crate::palette::{amber, ink, shade};
+use crate::palette::{Palette, shade};
 
 /// Which app is using the theme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Edition {
-    /// Full app: glints, a little more air.
+    /// Full app: decorations allowed, a little more air.
     Full,
     /// Lite: same colors, no decoration that costs anything.
     Lite,
 }
 
-pub fn apply(ctx: &Context, edition: Edition) {
-    ctx.set_theme(Theme::Dark);
-    ctx.style_mut_of(Theme::Dark, |style| configure(style, edition));
+/// Corner radius of buttons and fields in the default theme. The art theme is square.
+pub const RADIUS: u8 = 4;
+
+pub fn apply(ctx: &Context, edition: Edition, settings: &Settings, pal: &Palette) {
+    let theme = if pal.dark { Theme::Dark } else { Theme::Light };
+    ctx.set_theme(theme);
+    let art = settings.theme == ThemeStyle::Art;
+    ctx.style_mut_of(theme, |style| configure(style, edition, art, pal));
 }
 
-fn configure(style: &mut Style, edition: Edition) {
+fn configure(style: &mut Style, edition: Edition, art: bool, pal: &Palette) {
+    let radius = CornerRadius::same(if art { 0 } else { RADIUS });
     let v: &mut Visuals = &mut style.visuals;
-    *v = Visuals::dark();
+    *v = if pal.dark {
+        Visuals::dark()
+    } else {
+        Visuals::light()
+    };
     v.override_text_color = None;
-    v.panel_fill = ink::PANEL;
-    v.window_fill = ink::PANEL;
-    v.window_stroke = Stroke::new(1.0, amber::OUTLINE);
-    v.window_corner_radius = CornerRadius::ZERO;
-    v.menu_corner_radius = CornerRadius::ZERO;
+    v.panel_fill = pal.panel;
+    v.window_fill = pal.panel;
+    v.window_stroke = Stroke::new(1.0, pal.accent);
+    v.window_corner_radius = CornerRadius::same(if art { 0 } else { 6 });
+    v.menu_corner_radius = radius;
+    let shadow_alpha = if pal.dark { 120 } else { 40 };
     v.window_shadow = Shadow {
         offset: [0, 6],
         blur: 18,
         spread: 0,
-        color: Color32::from_black_alpha(120),
+        color: Color32::from_black_alpha(shadow_alpha),
     };
     v.popup_shadow = Shadow {
         offset: [0, 4],
         blur: 10,
         spread: 0,
-        color: Color32::from_black_alpha(100),
+        color: Color32::from_black_alpha(shadow_alpha - 20),
     };
-    v.extreme_bg_color = ink::VOID;
-    v.faint_bg_color = ink::BASE;
-    v.code_bg_color = ink::BASE;
-    v.text_edit_bg_color = Some(ink::BASE);
-    v.hyperlink_color = amber::LIGHTER;
-    v.warn_fg_color = amber::LIGHT;
-    v.error_fg_color = ink::ERROR;
-    v.selection.bg_fill = shade(amber::DEEP, 0.75);
-    v.selection.stroke = Stroke::new(1.0, amber::HIGHLIGHT);
+    v.extreme_bg_color = pal.void;
+    v.faint_bg_color = pal.base;
+    v.code_bg_color = pal.base;
+    v.text_edit_bg_color = Some(pal.base);
+    v.hyperlink_color = pal.accent_text;
+    v.warn_fg_color = pal.accent_text;
+    v.error_fg_color = pal.error;
+    v.selection.bg_fill = pal.selection;
+    v.selection.stroke = Stroke::new(1.0, pal.accent_text);
     v.window_highlight_topmost = false;
 
     let w = &mut v.widgets;
-    let square = CornerRadius::ZERO;
-    w.noninteractive.bg_fill = ink::PANEL;
-    w.noninteractive.weak_bg_fill = ink::PANEL;
-    w.noninteractive.bg_stroke = Stroke::new(1.0, ink::LINE);
-    w.noninteractive.fg_stroke = Stroke::new(1.0, ink::TEXT);
-    w.noninteractive.corner_radius = square;
+    w.noninteractive.bg_fill = pal.panel;
+    w.noninteractive.weak_bg_fill = pal.panel;
+    w.noninteractive.bg_stroke = Stroke::new(1.0, pal.line);
+    w.noninteractive.fg_stroke = Stroke::new(1.0, pal.text);
+    w.noninteractive.corner_radius = radius;
 
-    w.inactive.bg_fill = ink::RAISED;
-    w.inactive.weak_bg_fill = ink::RAISED;
-    w.inactive.bg_stroke = Stroke::new(1.0, shade(amber::DEEP, 0.7));
-    w.inactive.fg_stroke = Stroke::new(1.0, ink::TEXT);
-    w.inactive.corner_radius = square;
+    // Fields and combo boxes get the same outline as buttons.
+    let idle_outline = if art {
+        shade(pal.accent, 0.55)
+    } else {
+        pal.accent
+    };
+    w.inactive.bg_fill = pal.raised;
+    w.inactive.weak_bg_fill = pal.raised;
+    w.inactive.bg_stroke = Stroke::new(1.0, idle_outline);
+    w.inactive.fg_stroke = Stroke::new(1.0, pal.text);
+    w.inactive.corner_radius = radius;
 
-    w.hovered.bg_fill = ink::RAISED_HOVER;
-    w.hovered.weak_bg_fill = ink::RAISED_HOVER;
-    w.hovered.bg_stroke = Stroke::new(1.0, amber::MID);
-    w.hovered.fg_stroke = Stroke::new(1.5, amber::HIGHLIGHT);
-    w.hovered.corner_radius = square;
+    w.hovered.bg_fill = pal.raised_hover;
+    w.hovered.weak_bg_fill = pal.raised_hover;
+    w.hovered.bg_stroke = Stroke::new(1.0, pal.accent_hover);
+    w.hovered.fg_stroke = Stroke::new(1.5, pal.text);
+    w.hovered.corner_radius = radius;
     w.hovered.expansion = 0.0;
 
-    w.active.bg_fill = shade(ink::RAISED, 0.8);
-    w.active.weak_bg_fill = shade(ink::RAISED, 0.8);
-    w.active.bg_stroke = Stroke::new(1.0, amber::LIGHT);
-    w.active.fg_stroke = Stroke::new(1.5, amber::GLINT);
-    w.active.corner_radius = square;
+    w.active.bg_fill = pal.pressed;
+    w.active.weak_bg_fill = pal.pressed;
+    w.active.bg_stroke = Stroke::new(1.0, pal.accent_hover);
+    w.active.fg_stroke = Stroke::new(1.5, pal.text);
+    w.active.corner_radius = radius;
     w.active.expansion = 0.0;
 
     w.open = w.active;

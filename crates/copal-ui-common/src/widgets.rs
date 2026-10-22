@@ -1,13 +1,9 @@
-//! Copal widgets: buttons, tabs and frames with crystal borders.
+//! Copal widgets: buttons, tabs, section titles. They follow the current theme.
 
-use egui::{
-    Align2, Color32, FontId, InnerResponse, Margin, Rect, Response, Sense, Ui, Vec2, WidgetText,
-    pos2, vec2,
-};
+use egui::{Align2, FontId, Rect, Response, Sense, Ui, Vec2, WidgetText, pos2, vec2};
 
-use crate::crystal::{Border, paint_border, paint_sparkle};
-use crate::look::Look;
-use crate::palette::{amber, ink, shade};
+use crate::crystal::paint_sparkle;
+use crate::look::{Edge, Look, State};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ButtonKind {
@@ -17,12 +13,22 @@ pub enum ButtonKind {
     Primary,
 }
 
-/// A button with a crystal border. Brighter on hover, darker when pressed.
+fn state_of(response: &Response) -> State {
+    if response.is_pointer_button_down_on() {
+        State::Pressed
+    } else if response.hovered() {
+        State::Hovered
+    } else {
+        State::Idle
+    }
+}
+
+/// A button with the theme's outline. Brighter on hover, darker when pressed.
 pub fn button(ui: &mut Ui, look: &Look, kind: ButtonKind, text: impl Into<WidgetText>) -> Response {
     button_sized(ui, look, kind, text, None)
 }
 
-/// Like [`button`], with an optional fixed width.
+/// Like [`button`], with an optional minimum width.
 pub fn button_sized(
     ui: &mut Ui,
     look: &Look,
@@ -30,8 +36,7 @@ pub fn button_sized(
     text: impl Into<WidgetText>,
     width: Option<f32>,
 ) -> Response {
-    let border = Border::BUTTON;
-    let pad = ui.spacing().button_padding + Vec2::splat(border.width());
+    let pad = ui.spacing().button_padding + Vec2::splat(if look.art() { 2.0 } else { 1.0 });
     let galley = text.into().into_galley(
         ui,
         Some(egui::TextWrapMode::Extend),
@@ -45,35 +50,27 @@ pub fn button_sized(
     }
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     if ui.is_rect_visible(rect) {
-        let (fill, brightness, text_color) = match (
-            kind,
-            response.is_pointer_button_down_on(),
-            response.hovered(),
-        ) {
-            (_, true, _) => (shade(ink::RAISED, 0.8), 0.8, amber::LIGHTER),
-            (ButtonKind::Primary, false, true) => (shade(amber::DEEP, 0.42), 1.0, amber::GLINT),
-            (ButtonKind::Primary, false, false) => {
-                (shade(amber::DEEP, 0.32), 0.95, amber::HIGHLIGHT)
-            }
-            (ButtonKind::Normal, false, true) => (ink::RAISED_HOVER, 1.0, amber::HIGHLIGHT),
-            (ButtonKind::Normal, false, false) => (ink::RAISED, border.brightness, ink::TEXT),
+        let p = &look.pal;
+        let state = state_of(&response);
+        let fill = match (kind, state) {
+            (_, State::Pressed) => p.pressed,
+            (ButtonKind::Primary, State::Hovered) => p.primary_fill_hover,
+            (ButtonKind::Primary, _) => p.primary_fill,
+            (ButtonKind::Normal, State::Hovered) => p.raised_hover,
+            (ButtonKind::Normal, _) => p.raised,
         };
-        let text_color = if ui.is_enabled() {
-            text_color
+        let text_color = if !ui.is_enabled() {
+            p.text_faint
+        } else if kind == ButtonKind::Primary {
+            p.accent_text
         } else {
-            ink::TEXT_FAINT
+            p.text
         };
         let painter = ui.painter();
-        painter.rect_filled(rect, 0.0, fill);
-        paint_border(
-            painter,
-            look.crystal.id(),
-            rect,
-            border.with_brightness(brightness),
-        );
-        let text_pos = rect.center() - galley.size() / 2.0;
-        painter.galley(text_pos, galley, text_color);
-        if look.decorations() && kind == ButtonKind::Primary && response.hovered() {
+        painter.rect_filled(rect, look.radius(Edge::Button), fill);
+        look.outline(painter, rect, Edge::Button, state);
+        painter.galley(rect.center() - galley.size() / 2.0, galley, text_color);
+        if look.decorations() && kind == ButtonKind::Primary && state == State::Hovered {
             paint_sparkle(painter, rect.left_top() + vec2(2.0, 2.0), 1.5, 1);
         }
     }
@@ -85,32 +82,24 @@ pub fn tab(ui: &mut Ui, look: &Look, selected: bool, number: usize, text: &str) 
     let size = vec2(ui.available_width(), 40.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     if ui.is_rect_visible(rect) {
+        let p = &look.pal;
         let painter = ui.painter();
         let hovered = response.hovered();
         if selected {
-            painter.rect_filled(rect, 0.0, ink::RAISED);
-            paint_border(
-                painter,
-                look.crystal.id(),
-                rect,
-                Border::BUTTON.with_brightness(0.95),
-            );
+            painter.rect_filled(rect, look.radius(Edge::Button), p.raised);
+            look.outline(painter, rect, Edge::Button, State::Selected);
             if look.decorations() {
                 paint_sparkle(painter, rect.right_top() + vec2(-6.0, 6.0), 1.5, 1);
             }
         } else if hovered {
-            painter.rect_filled(rect, 0.0, ink::BASE);
+            painter.rect_filled(rect, look.radius(Edge::Button), p.raised_hover);
         }
         let color = match (selected, hovered) {
-            (true, _) => amber::HIGHLIGHT,
-            (false, true) => ink::TEXT,
-            (false, false) => ink::TEXT_WEAK,
+            (true, _) => p.accent_text,
+            (false, true) => p.text,
+            (false, false) => p.text_weak,
         };
-        let num_color = if selected {
-            amber::LIGHT
-        } else {
-            ink::TEXT_FAINT
-        };
+        let num_color = if selected { p.accent } else { p.text_faint };
         painter.text(
             pos2(rect.left() + 14.0, rect.center().y),
             Align2::LEFT_CENTER,
@@ -129,35 +118,19 @@ pub fn tab(ui: &mut Ui, look: &Look, selected: bool, number: usize, text: &str) 
     response
 }
 
-/// A framed group with a crystal border.
-pub fn frame<R>(
-    ui: &mut Ui,
-    look: &Look,
-    border: Border,
-    fill: Color32,
-    add: impl FnOnce(&mut Ui) -> R,
-) -> InnerResponse<R> {
-    let margin = Margin::same((border.width() + 8.0).round() as i8);
-    let inner = egui::Frame::new()
-        .fill(fill)
-        .inner_margin(margin)
-        .show(ui, add);
-    paint_border(ui.painter(), look.crystal.id(), inner.response.rect, border);
-    inner
-}
-
-/// A small section title: an amber tick and quiet uppercase text.
-pub fn section(ui: &mut Ui, title: &str) {
+/// A small section title: an accent tick and quiet uppercase text.
+pub fn section(ui: &mut Ui, look: &Look, title: &str) {
     ui.add_space(6.0);
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 18.0), Sense::hover());
     let tick = Rect::from_min_size(pos2(rect.left(), rect.center().y - 3.0), vec2(6.0, 6.0));
-    ui.painter().rect_filled(tick, 0.0, amber::MID);
+    let radius = if look.art() { 0.0 } else { 3.0 };
+    ui.painter().rect_filled(tick, radius, look.pal.accent);
     ui.painter().text(
         pos2(rect.left() + 12.0, rect.center().y),
         Align2::LEFT_CENTER,
         title.to_uppercase(),
         FontId::proportional(11.5),
-        ink::TEXT_WEAK,
+        look.pal.text_weak,
     );
 }
 

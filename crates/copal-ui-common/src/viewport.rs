@@ -1,13 +1,13 @@
 //! A simple 3D view of the build plate, drawn with egui shapes.
 //!
-//! This is the 0.0 preview renderer: orthographic camera, flat shading, painter's algorithm.
+//! This is the preview renderer: orthographic camera, flat lighting, painter's algorithm.
 //! It is fast enough for test objects; the real GPU renderer comes in 0.2 (Lite) and 0.4 (full).
 
 use copal_core::{Document, ObjectId};
 use egui::{Color32, Mesh, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, pos2};
 use glam::Vec3;
 
-use crate::palette::{amber, ink, shade};
+use crate::palette::{Palette, shade};
 
 /// Known build volumes (mm). The preset database replaces this in 0.1.
 pub fn build_volume(printer: Option<&str>) -> Vec3 {
@@ -23,7 +23,7 @@ pub struct Camera {
     pub yaw: f32,
     /// Angle above the plate, degrees.
     pub pitch: f32,
-    /// Screen points per millimeter.
+    /// Screen points per millimeter. 0 = fit to the view on the next frame.
     pub zoom: f32,
     pub target: Vec3,
 }
@@ -91,11 +91,11 @@ pub fn show(
     doc: &Document,
     cam: &mut Camera,
     selected: Option<ObjectId>,
-    flat: bool,
+    pal: &Palette,
 ) -> ViewportOutput {
     let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
     let rect = response.rect;
-    painter.rect_filled(rect, 0.0, ink::VOID);
+    painter.rect_filled(rect, 0.0, pal.void);
 
     let volume = build_volume(doc.printer.as_deref());
     if cam.zoom <= 0.0 {
@@ -104,7 +104,7 @@ pub fn show(
             * 0.62;
         cam.target = Vec3::new(0.0, 0.0, volume.z * 0.25);
     }
-    // Orbit with the left or middle button, zoom with the wheel.
+    // Orbit by dragging, zoom with the wheel.
     if response.dragged() {
         let d = response.drag_delta();
         cam.yaw -= d.x * 0.4;
@@ -119,8 +119,8 @@ pub fn show(
 
     let view = View::new(cam, rect);
     let painter = painter.with_clip_rect(rect);
-    draw_plate(&painter, &view, volume);
-    let hits = draw_objects(&painter, &view, doc, selected, flat);
+    draw_plate(&painter, &view, volume, pal);
+    let hits = draw_objects(&painter, &view, doc, selected, pal);
 
     let clicked = if response.clicked() {
         let pointer = response.interact_pointer_pos();
@@ -136,7 +136,7 @@ pub fn show(
     ViewportOutput { response, clicked }
 }
 
-fn draw_plate(painter: &Painter, view: &View, volume: Vec3) {
+fn draw_plate(painter: &Painter, view: &View, volume: Vec3, pal: &Palette) {
     let (hx, hy) = (volume.x / 2.0, volume.y / 2.0);
     let corners = [
         Vec3::new(-hx, -hy, 0.0),
@@ -147,47 +147,36 @@ fn draw_plate(painter: &Painter, view: &View, volume: Vec3) {
     let plate: Vec<Pos2> = corners.iter().map(|c| view.project(*c).0).collect();
     painter.add(Shape::convex_polygon(
         plate.clone(),
-        ink::BASE,
+        pal.plate,
         Stroke::NONE,
     ));
 
-    let grid = Stroke::new(1.0, ink::LINE);
+    let grid = Stroke::new(1.0, pal.grid);
     let mut x = -hx + (hx % 10.0);
     while x <= hx {
-        painter.line_segment(
-            [
-                view.project(Vec3::new(x, -hy, 0.0)).0,
-                view.project(Vec3::new(x, hy, 0.0)).0,
-            ],
-            grid,
-        );
+        let a = view.project(Vec3::new(x, -hy, 0.0)).0;
+        let b = view.project(Vec3::new(x, hy, 0.0)).0;
+        painter.line_segment([a, b], grid);
         x += 10.0;
     }
     let mut y = -hy + (hy % 10.0);
     while y <= hy {
-        painter.line_segment(
-            [
-                view.project(Vec3::new(-hx, y, 0.0)).0,
-                view.project(Vec3::new(hx, y, 0.0)).0,
-            ],
-            grid,
-        );
+        let a = view.project(Vec3::new(-hx, y, 0.0)).0;
+        let b = view.project(Vec3::new(hx, y, 0.0)).0;
+        painter.line_segment([a, b], grid);
         y += 10.0;
     }
-    let edge = Stroke::new(1.5, shade(amber::DEEP, 0.8));
+    let edge = Stroke::new(1.5, pal.plate_edge);
     for i in 0..4 {
         painter.line_segment([plate[i], plate[(i + 1) % 4]], edge);
     }
     // Build volume, very faint.
-    let faint = Stroke::new(1.0, Color32::from_rgba_unmultiplied(120, 100, 80, 40));
-    for c in corners {
-        let top = c + Vec3::Z * volume.z;
-        painter.line_segment([view.project(c).0, view.project(top).0], faint);
-    }
+    let faint = Stroke::new(1.0, pal.volume);
     for i in 0..4 {
-        let a = corners[i] + Vec3::Z * volume.z;
-        let b = corners[(i + 1) % 4] + Vec3::Z * volume.z;
-        painter.line_segment([view.project(a).0, view.project(b).0], faint);
+        let (a, b) = (corners[i], corners[(i + 1) % 4]);
+        let up = Vec3::Z * volume.z;
+        painter.line_segment([view.project(a).0, view.project(a + up).0], faint);
+        painter.line_segment([view.project(a + up).0, view.project(b + up).0], faint);
     }
     // Front marker, so it is clear which side faces you.
     let front = view.project(Vec3::new(0.0, -hy - 6.0, 0.0)).0;
@@ -196,7 +185,7 @@ fn draw_plate(painter: &Painter, view: &View, volume: Vec3) {
         egui::Align2::CENTER_CENTER,
         "FRONT",
         egui::FontId::proportional(10.0),
-        ink::TEXT_FAINT,
+        pal.text_faint,
     );
 }
 
@@ -207,7 +196,7 @@ fn draw_objects(
     view: &View,
     doc: &Document,
     selected: Option<ObjectId>,
-    flat: bool,
+    pal: &Palette,
 ) -> Vec<(Tri, ObjectId)> {
     let light = Vec3::new(-0.4, -0.6, 0.85).normalize();
     let mut tris: Vec<(f32, Tri, Color32, ObjectId)> = Vec::new();
@@ -219,11 +208,10 @@ fn draw_objects(
             .iter()
             .map(|p| m.transform_point3(*p))
             .collect();
-        let is_sel = selected == Some(o.id);
-        let base = if is_sel {
-            amber::LIGHT
+        let base = if selected == Some(o.id) {
+            pal.object_selected
         } else {
-            Color32::from_rgb(196, 184, 170)
+            pal.object
         };
         for t in &o.mesh.triangles {
             let [a, b, c] = t.map(|i| world[i as usize]);
@@ -234,11 +222,7 @@ fn draw_objects(
             let (pa, da) = view.project(a);
             let (pb, db) = view.project(b);
             let (pc, dc) = view.project(c);
-            let lit = if flat {
-                0.85
-            } else {
-                0.45 + 0.55 * n.dot(light).max(0.0)
-            };
+            let lit = 0.5 + 0.5 * n.dot(light).max(0.0);
             tris.push(((da + db + dc) / 3.0, [pa, pb, pc], shade(base, lit), o.id));
         }
     }
