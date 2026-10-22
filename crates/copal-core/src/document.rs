@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use copal_mesh::{Aabb, Mesh};
+use copal_presets::{HollowSettings, LayoutSettings, PrintSettings, SupportSettings};
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 
@@ -69,6 +70,16 @@ impl SceneObject {
     }
 }
 
+/// Settings stored in the project. Each part can be saved and loaded as a preset.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProjectSettings {
+    pub print: PrintSettings,
+    pub supports: SupportSettings,
+    pub hollow: HollowSettings,
+    pub layout: LayoutSettings,
+}
+
 /// The whole project.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Document {
@@ -77,6 +88,7 @@ pub struct Document {
     pub printer: Option<String>,
     /// Resin preset id, e.g. `anycubic/abs-like-pro-2-grey`.
     pub resin: Option<String>,
+    pub settings: ProjectSettings,
     pub(crate) objects: Vec<SceneObject>,
     pub(crate) next_id: u64,
 }
@@ -93,6 +105,7 @@ impl Document {
             name: name.into(),
             printer: None,
             resin: None,
+            settings: ProjectSettings::default(),
             objects: Vec::new(),
             next_id: 1,
         }
@@ -108,6 +121,30 @@ impl Document {
 
     pub fn object_mut(&mut self, id: ObjectId) -> Option<&mut SceneObject> {
         self.objects.iter_mut().find(|o| o.id == id)
+    }
+
+    /// Size of the build plate in mm (X, Y) and the build height, from the printer preset.
+    /// Falls back to a typical 8K plate when no printer is chosen.
+    pub fn build_volume(&self) -> Vec3 {
+        self.printer
+            .as_deref()
+            .and_then(|id| {
+                crate::library()
+                    .printer(id)
+                    .map(|p| Vec3::from(p.volume_mm()))
+            })
+            .unwrap_or(Vec3::new(218.88, 122.88, 220.0))
+    }
+
+    /// Bounding box of all objects together.
+    pub fn bounds(&self) -> Option<Aabb> {
+        self.objects
+            .iter()
+            .filter_map(|o| o.world_bounds())
+            .reduce(|a, b| Aabb {
+                min: a.min.min(b.min),
+                max: a.max.max(b.max),
+            })
     }
 
     pub(crate) fn index_of(&self, id: ObjectId) -> Option<usize> {

@@ -7,6 +7,7 @@ use glam::Vec3;
 
 use crate::command::{Command, CommandError};
 use crate::document::{Document, ObjectId, SceneObject, Transform};
+use crate::ops::{Arrange, Duplicate, Import, Mirror, RemoveAll, Section, SetMachine, SetSettings};
 use crate::script::{Args, parse_line, quote};
 
 /// Describes one command for help screens, autocomplete and docs.
@@ -49,10 +50,33 @@ pub fn parse_command(line: &str) -> Result<Option<Box<dyn Command>>, CommandErro
 
 static REGISTRY: &[CommandInfo] = &[
     CommandInfo {
+        name: "hollow.set",
+        summary: "Change hollowing settings (wall thickness, drain holes).",
+        usage: "hollow.set <setting>=<value> … (run `settings hollow` to see them)",
+        build: |a| SetSettings::build(Section::Hollow, a),
+    },
+    CommandInfo {
+        name: "layout.set",
+        summary: "Change how models move on the plate (keep on plate, snapping, spacing).",
+        usage: "layout.set <setting>=<value> … (run `settings layout` to see them)",
+        build: |a| SetSettings::build(Section::Layout, a),
+    },
+    CommandInfo {
         name: "object.add_cube",
         summary: "Add a box. Handy for tests and calibration.",
         usage: "object.add_cube size=<mm> | x=<mm> y=<mm> z=<mm> [name=<text>]",
         build: build_add_cube,
+    },
+    CommandInfo {
+        name: "object.arrange",
+        summary: "Place all objects on the plate in neat rows.",
+        usage: "object.arrange [spacing=<mm>]",
+        build: |a| {
+            a.only(&["spacing"])?;
+            Ok(Box::new(Arrange {
+                spacing: a.opt("spacing")?,
+            }))
+        },
     },
     CommandInfo {
         name: "object.drop",
@@ -62,6 +86,53 @@ static REGISTRY: &[CommandInfo] = &[
             a.only(&["id"])?;
             Ok(Box::new(DropToPlate {
                 id: ObjectId(a.get("id")?),
+            }))
+        },
+    },
+    CommandInfo {
+        name: "object.duplicate",
+        summary: "Copy an object to free places on the plate.",
+        usage: "object.duplicate id=<id> [count=<n>]",
+        build: |a| {
+            a.only(&["id", "count"])?;
+            let count: u32 = a.opt("count")?.unwrap_or(1);
+            if !(1..=500).contains(&count) {
+                return Err(CommandError::Invalid("count must be 1 to 500".into()));
+            }
+            Ok(Box::new(Duplicate {
+                id: ObjectId(a.get("id")?),
+                count,
+            }))
+        },
+    },
+    CommandInfo {
+        name: "object.import",
+        summary: "Load a model from an STL, OBJ or 3MF file onto the plate.",
+        usage: "object.import path=<file> [name=<text>]",
+        build: Import::build,
+    },
+    CommandInfo {
+        name: "object.mirror",
+        summary: "Mirror an object along the X, Y or Z axis.",
+        usage: "object.mirror id=<id> axis=x|y|z",
+        build: |a| {
+            a.only(&["id", "axis"])?;
+            let axis = match a.str("axis")? {
+                "x" | "X" => 0,
+                "y" | "Y" => 1,
+                "z" | "Z" => 2,
+                other => {
+                    return Err(CommandError::BadValue {
+                        command: "object.mirror".into(),
+                        arg: "axis".into(),
+                        value: other.into(),
+                        reason: "expected x, y or z".into(),
+                    });
+                }
+            };
+            Ok(Box::new(Mirror {
+                id: ObjectId(a.get("id")?),
+                axis,
             }))
         },
     },
@@ -87,6 +158,15 @@ static REGISTRY: &[CommandInfo] = &[
             Ok(Box::new(RemoveObject {
                 id: ObjectId(a.get("id")?),
             }))
+        },
+    },
+    CommandInfo {
+        name: "object.remove_all",
+        summary: "Delete every object.",
+        usage: "object.remove_all",
+        build: |a| {
+            a.only(&[])?;
+            Ok(Box::new(RemoveAll))
         },
     },
     CommandInfo {
@@ -151,6 +231,12 @@ static REGISTRY: &[CommandInfo] = &[
         },
     },
     CommandInfo {
+        name: "print.set",
+        summary: "Change print settings: layers, exposure, lift and retract, anti-aliasing.",
+        usage: "print.set <setting>=<value> … (run `settings print` to see them)",
+        build: |a| SetSettings::build(Section::Print, a),
+    },
+    CommandInfo {
         name: "project.rename",
         summary: "Rename the project.",
         usage: "project.rename name=<text>",
@@ -161,23 +247,27 @@ static REGISTRY: &[CommandInfo] = &[
     },
     CommandInfo {
         name: "project.set_printer",
-        summary: "Choose the printer preset. An empty value clears it.",
+        summary: "Choose the printer. Applies the resin's settings for it, if it has them.",
         usage: "project.set_printer printer=<brand/model>",
         build: |a| {
             a.only(&["printer"])?;
-            Ok(Box::new(SetProjectField::Printer(non_empty(
-                a.str("printer")?,
-            ))))
+            Ok(Box::new(SetMachine::Printer(non_empty(a.str("printer")?))))
         },
     },
     CommandInfo {
         name: "project.set_resin",
-        summary: "Choose the resin preset. An empty value clears it.",
+        summary: "Choose the resin. Applies its print settings for the chosen printer.",
         usage: "project.set_resin resin=<brand/resin>",
         build: |a| {
             a.only(&["resin"])?;
-            Ok(Box::new(SetProjectField::Resin(non_empty(a.str("resin")?))))
+            Ok(Box::new(SetMachine::Resin(non_empty(a.str("resin")?))))
         },
+    },
+    CommandInfo {
+        name: "supports.set",
+        summary: "Change support settings (tips, thickness, overhang angle, bracing, raft).",
+        usage: "supports.set <setting>=<value> … (run `settings supports` to see them)",
+        build: |a| SetSettings::build(Section::Supports, a),
     },
 ];
 
@@ -236,48 +326,37 @@ fn build_add_cube(a: &Args) -> Result<Box<dyn Command>, CommandError> {
 #[derive(Debug, Clone)]
 enum SetProjectField {
     Name(String),
-    Printer(Option<String>),
-    Resin(Option<String>),
 }
 
 impl Command for SetProjectField {
     fn name(&self) -> &'static str {
-        match self {
-            Self::Name(_) => "project.rename",
-            Self::Printer(_) => "project.set_printer",
-            Self::Resin(_) => "project.set_resin",
-        }
+        "project.rename"
     }
 
     fn to_text(&self) -> Option<String> {
-        let opt = |v: &Option<String>| quote(v.as_deref().unwrap_or(""));
-        Some(match self {
-            Self::Name(n) => format!("project.rename name={}", quote(n)),
-            Self::Printer(p) => format!("project.set_printer printer={}", opt(p)),
-            Self::Resin(r) => format!("project.set_resin resin={}", opt(r)),
-        })
+        let Self::Name(n) = self;
+        Some(format!("project.rename name={}", quote(n)))
     }
 
     fn apply(&self, doc: &mut Document) -> Result<Box<dyn Command>, CommandError> {
-        let old = match self {
-            Self::Name(n) => Self::Name(std::mem::replace(&mut doc.name, n.clone())),
-            Self::Printer(p) => Self::Printer(std::mem::replace(&mut doc.printer, p.clone())),
-            Self::Resin(r) => Self::Resin(std::mem::replace(&mut doc.resin, r.clone())),
-        };
-        Ok(Box::new(old))
+        let Self::Name(n) = self;
+        Ok(Box::new(Self::Name(std::mem::replace(
+            &mut doc.name,
+            n.clone(),
+        ))))
     }
 }
 
 #[derive(Debug, Clone)]
-struct AddObject {
+pub(crate) struct AddObject {
     /// `None` = allocate a new id. Set when re-adding a removed object (undo).
-    id: Option<ObjectId>,
+    pub id: Option<ObjectId>,
     /// `None` = append. Set when re-adding a removed object (undo).
-    index: Option<usize>,
-    name: String,
-    transform: Transform,
-    mesh: Arc<Mesh>,
-    text: Option<String>,
+    pub index: Option<usize>,
+    pub name: String,
+    pub transform: Transform,
+    pub mesh: Arc<Mesh>,
+    pub text: Option<String>,
 }
 
 impl Command for AddObject {
@@ -315,8 +394,8 @@ impl Command for AddObject {
 }
 
 #[derive(Debug, Clone)]
-struct RemoveObject {
-    id: ObjectId,
+pub(crate) struct RemoveObject {
+    pub id: ObjectId,
 }
 
 impl Command for RemoveObject {
@@ -410,14 +489,24 @@ impl Command for EditTransform {
     }
 
     fn apply(&self, doc: &mut Document) -> Result<Box<dyn Command>, CommandError> {
+        let keep_on_plate = doc.settings.layout.keep_on_plate;
         let o = doc
             .object_mut(self.id)
             .ok_or(CommandError::NoSuchObject(self.id))?;
         let old = o.transform;
+        let was_on_plate = o.world_bounds().is_some_and(|b| b.min.z.abs() < 1e-3);
         match self.edit {
             Edit::Move(d) => o.transform.translation += d,
             Edit::Rotate(d) => o.transform.rotation_deg += d,
             Edit::Scale(f) => o.transform.scale *= f,
+        }
+        // A model that stood on the plate stays on it after rotating or scaling.
+        if keep_on_plate
+            && was_on_plate
+            && !matches!(self.edit, Edit::Move(_))
+            && let Some(b) = o.world_bounds()
+        {
+            o.transform.translation.z -= b.min.z;
         }
         // Restore the exact old value instead of subtracting, so undo never drifts.
         Ok(Box::new(SetTransform {
@@ -428,9 +517,9 @@ impl Command for EditTransform {
 }
 
 #[derive(Debug, Clone)]
-struct SetTransform {
-    id: ObjectId,
-    transform: Transform,
+pub(crate) struct SetTransform {
+    pub id: ObjectId,
+    pub transform: Transform,
 }
 
 impl Command for SetTransform {

@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "copal"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "copal-core",
  "copal-ui-common",
@@ -397,10 +397,12 @@ dependencies = [
 
 [[package]]
 name = "copal-cli"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "clap",
  "copal-core",
+ "copal-formats",
+ "copal-shell",
  "serde_json",
  "tempfile",
  "winresource",
@@ -408,24 +410,36 @@ dependencies = [
 
 [[package]]
 name = "copal-core"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "copal-mesh",
+ "copal-presets",
  "glam",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
+ "toml",
  "zip",
 ]
 
 [[package]]
 name = "copal-formats"
-version = "0.0.2"
+version = "0.1.0"
+dependencies = [
+ "copal-core",
+ "copal-mesh",
+ "copal-slice",
+ "glam",
+ "image",
+ "rayon",
+ "tempfile",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "copal-lite"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "copal-core",
  "copal-ui-common",
@@ -436,35 +450,64 @@ dependencies = [
 
 [[package]]
 name = "copal-mesh"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "glam",
+ "quick-xml 0.42.0",
  "thiserror 2.0.21",
+ "zip",
 ]
 
 [[package]]
 name = "copal-net"
-version = "0.0.2"
+version = "0.1.0"
 
 [[package]]
 name = "copal-presets"
-version = "0.0.2"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml",
+]
+
+[[package]]
+name = "copal-shell"
+version = "0.1.0"
+dependencies = [
+ "copal-core",
+ "copal-formats",
+ "serde",
+ "tempfile",
+ "toml",
+]
 
 [[package]]
 name = "copal-slice"
-version = "0.0.2"
+version = "0.1.0"
+dependencies = [
+ "glam",
+]
 
 [[package]]
 name = "copal-supports"
-version = "0.0.2"
+version = "0.1.0"
 
 [[package]]
 name = "copal-ui-common"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "copal-core",
+ "copal-formats",
+ "copal-mesh",
+ "copal-shell",
+ "copal-slice",
  "egui",
+ "egui_glow",
  "glam",
+ "glow",
  "image",
 ]
 
@@ -515,6 +558,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ba106e844045ddc02c20768ac4b0b7cb45f2cc2ecbd833ac9f5dacb183c2055"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "crossbeam-deque"
+version = "0.8.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "622f3fc73690be383c7214310406f28a90e6edeadc3cea882f9d71e495b9711a"
+dependencies = [
+ "crossbeam-epoch",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-epoch"
+version = "0.9.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc74980687109a3b14c72fd458107bf0baa1da1a1a805e178d15501ba9b86d9d"
+dependencies = [
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -2003,6 +2065,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2028,6 +2099,26 @@ name = "raw-window-handle"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
+
+[[package]]
+name = "rayon"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
+dependencies = [
+ "either",
+ "rayon-core",
+]
+
+[[package]]
+name = "rayon-core"
+version = "1.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
+dependencies = [
+ "crossbeam-deque",
+ "crossbeam-utils",
+]
 
 [[package]]
 name = "read-fonts"
@@ -2756,7 +2847,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "338e30461b3a2b67d70eb30a6d89f8e0c93a833e07d2ae89085cd070c4a00ac0"
 dependencies = [
  "proc-macro2",
- "quick-xml",
+ "quick-xml 0.41.0",
  "quote",
 ]
 

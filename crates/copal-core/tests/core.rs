@@ -123,6 +123,14 @@ fn every_recorded_command_replays_to_the_same_document() {
          object.scale id=1 x=1.5\n\
          object.rename id=1 name=\"Renamed base\"\n\
          object.drop id=1\n\
+         object.duplicate id=1 count=2\n\
+         object.mirror id=2 axis=y\n\
+         object.arrange spacing=4\n\
+         print.set exposure_s=1.8 lift_mm=3,1 anti_aliasing=8\n\
+         supports.set overhang_angle_deg=50 raft=false\n\
+         hollow.set enabled=true wall_thickness_mm=2\n\
+         layout.set keep_on_plate=false\n\
+         object.remove id=3\n\
          project.rename name=\"My project\"",
     )
     .unwrap();
@@ -191,7 +199,10 @@ fn rejects_non_projects_and_newer_versions() {
     let mut zip = zip::ZipArchive::new(Cursor::new(buf.into_inner())).unwrap();
     let mut json = String::new();
     std::io::Read::read_to_string(&mut zip.by_name("project.json").unwrap(), &mut json).unwrap();
-    let newer = json.replace("\"version\": 1", "\"version\": 99");
+    let newer = json.replace(
+        &format!("\"version\": {}", project::FORMAT_VERSION),
+        "\"version\": 99",
+    );
 
     let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
     out.start_file("project.json", zip::write::SimpleFileOptions::default())
@@ -200,4 +211,135 @@ fn rejects_non_projects_and_newer_versions() {
     let bytes = out.finish().unwrap().into_inner();
     let err = project::read_from(Cursor::new(bytes)).unwrap_err();
     assert!(matches!(err, ProjectError::TooNew { found: 99 }), "{err}");
+}
+
+#[test]
+fn resin_applies_its_profile_and_undo_restores() {
+    let mut s = Session::new(Document::default());
+    let before = s.doc.settings;
+    s.run_line("project.set_printer printer=elegoo/saturn-4-ultra-16k")
+        .unwrap();
+    assert_eq!(s.doc.settings, before, "no resin yet, settings stay");
+    s.run_line("project.set_resin resin=anycubic/abs-like-pro-2-grey")
+        .unwrap();
+    assert_eq!(s.doc.settings.print.exposure.layer_height_mm, 0.03);
+    assert_eq!(s.doc.settings.print.motion.lift_speed, [45.0, 180.0]);
+    s.history.undo(&mut s.doc).unwrap();
+    assert_eq!(s.doc.settings, before);
+    assert_eq!(s.doc.resin, None);
+    assert!(
+        s.run_line("project.set_printer printer=nobody/nothing")
+            .is_err()
+    );
+}
+
+#[test]
+fn settings_commands_check_names_and_values() {
+    let mut s = Session::new(Document::default());
+    assert!(
+        s.run_line("print.set exposure_s=2.2 bottom_layers=6")
+            .is_ok()
+    );
+    assert_eq!(s.doc.settings.print.exposure.exposure_s, 2.2);
+    assert_eq!(s.doc.settings.print.exposure.bottom_layers, 6);
+    for bad in [
+        "print.set exposur_s=2",
+        "print.set exposure_s=fast",
+        "print.set exposure_s=-1",
+        "print.set anti_aliasing=3",
+        "print.set lift_mm=1",
+        "print.set layer_height_mm=0",
+        "supports.set overhang_angle_deg=95",
+        "print.set",
+    ] {
+        assert!(s.run_line(bad).is_err(), "{bad} should fail");
+    }
+    assert_eq!(s.history.undo_labels().count(), 1);
+}
+
+#[test]
+fn a_full_settings_line_restores_a_preset() {
+    let mut a = Document::default();
+    a.settings.print.exposure.exposure_s = 1.35;
+    a.settings.print.motion.lift_mm = [2.5, 1.0];
+    a.settings.supports.raft = false;
+    let mut s = Session::new(Document::default());
+    for section in copal_core::Section::ALL {
+        s.run_line(&copal_core::SetSettings::line_for(section, &a.settings))
+            .unwrap();
+    }
+    assert_eq!(s.doc.settings, a.settings);
+}
+
+#[test]
+fn import_places_models_side_by_side_and_undoes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("block.stl");
+    let mut mesh = copal_mesh::Mesh::cuboid(glam::Vec3::new(20.0, 10.0, 5.0));
+    for p in &mut mesh.positions {
+        *p += glam::Vec3::new(100.0, 50.0, 7.0);
+    }
+    std::fs::write(&path, copal_mesh::import::write_stl(&mesh)).unwrap();
+    let mut s = Session::new(Document::default());
+    let line = format!(
+        "object.import path={}",
+        copal_core::script::quote(&path.to_string_lossy())
+    );
+    s.run_line(&line).unwrap();
+    s.run_line(&line).unwrap();
+    let objects = s.doc.objects();
+    assert_eq!(objects.len(), 2);
+    assert_eq!(objects[0].name, "block");
+    let (a, b) = (
+        objects[0].world_bounds().unwrap(),
+        objects[1].world_bounds().unwrap(),
+    );
+    assert!(
+        a.min.z.abs() < 1e-4 && b.min.z.abs() < 1e-4,
+        "both stand on the plate"
+    );
+    assert!(
+        a.center().x.abs() < 1e-4 && a.center().y.abs() < 1e-4,
+        "first is centered"
+    );
+    let apart =
+        a.max.x <= b.min.x || b.max.x <= a.min.x || a.max.y <= b.min.y || b.max.y <= a.min.y;
+    assert!(apart, "second one does not overlap the first");
+    s.history.undo(&mut s.doc).unwrap();
+    assert_eq!(s.doc.objects().len(), 1);
+    s.history.redo(&mut s.doc).unwrap();
+    assert_eq!(s.doc.objects().len(), 2);
+}
+
+#[test]
+fn rotating_keeps_a_model_on_the_plate() {
+    let mut s = Session::new(Document::default());
+    s.run_script("object.add_cube size=10\nobject.rotate id=1 x=45")
+        .unwrap();
+    let b = s.doc.objects()[0].world_bounds().unwrap();
+    assert!(b.min.z.abs() < 1e-4, "{b:?}");
+    s.run_script("layout.set keep_on_plate=false\nobject.rotate id=1 x=45")
+        .unwrap();
+    let b = s.doc.objects()[0].world_bounds().unwrap();
+    assert!(b.min.z.abs() > 1.0, "{b:?}");
+}
+
+#[test]
+fn version_one_projects_still_open() {
+    let mut buf = Cursor::new(Vec::new());
+    project::write_to(&Document::new("old"), &mut buf).unwrap();
+    let mut zip = zip::ZipArchive::new(Cursor::new(buf.into_inner())).unwrap();
+    let mut json = String::new();
+    std::io::Read::read_to_string(&mut zip.by_name("project.json").unwrap(), &mut json).unwrap();
+    let mut v: serde_json::Value = serde_json::from_str(&json).unwrap();
+    v["version"] = 1.into();
+    v.as_object_mut().unwrap().remove("settings");
+    let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    out.start_file("project.json", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    std::io::Write::write_all(&mut out, v.to_string().as_bytes()).unwrap();
+    let bytes = out.finish().unwrap().into_inner();
+    let doc = project::read_from(Cursor::new(bytes)).unwrap();
+    assert_eq!(doc.name, "old");
+    assert_eq!(doc.settings, copal_core::ProjectSettings::default());
 }

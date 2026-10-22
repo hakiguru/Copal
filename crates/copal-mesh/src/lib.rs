@@ -3,7 +3,9 @@
 //! A [`Mesh`] is an indexed triangle list. Import from STL/OBJ/3MF arrives in 0.1;
 //! repair, booleans and editing come later (see `docs/ROADMAP.md`).
 
-use glam::Vec3;
+pub mod import;
+
+use glam::{Mat4, Vec3};
 use thiserror::Error;
 
 /// An indexed triangle mesh. Units are millimeters.
@@ -21,6 +23,10 @@ pub struct Aabb {
 }
 
 impl Aabb {
+    pub fn center(&self) -> Vec3 {
+        (self.min + self.max) / 2.0
+    }
+
     pub fn size(&self) -> Vec3 {
         self.max - self.min
     }
@@ -110,6 +116,74 @@ impl Mesh {
             .sum()
     }
 
+    /// Flips all triangles if the mesh is inside-out (negative volume).
+    /// Returns true if it flipped.
+    pub fn fix_orientation(&mut self) -> bool {
+        if self.volume() < 0.0 {
+            for t in &mut self.triangles {
+                t.swap(1, 2);
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// A copy with every vertex transformed.
+    pub fn transformed(&self, m: &Mat4) -> Mesh {
+        let flip = m.determinant() < 0.0;
+        Mesh {
+            positions: self
+                .positions
+                .iter()
+                .map(|p| m.transform_point3(*p))
+                .collect(),
+            triangles: if flip {
+                self.triangles.iter().map(|t| [t[0], t[2], t[1]]).collect()
+            } else {
+                self.triangles.clone()
+            },
+        }
+    }
+
+    /// Adds all triangles of `other` to this mesh.
+    pub fn append(&mut self, other: &Mesh) {
+        let base = self.positions.len() as u32;
+        self.positions.extend_from_slice(&other.positions);
+        self.triangles.extend(
+            other
+                .triangles
+                .iter()
+                .map(|t| [t[0] + base, t[1] + base, t[2] + base]),
+        );
+    }
+
+    /// Distance along the ray to the nearest triangle, if any. `dir` must be normalized.
+    pub fn raycast(&self, origin: Vec3, dir: Vec3) -> Option<(f32, usize)> {
+        let mut best: Option<(f32, usize)> = None;
+        for (i, t) in self.triangles.iter().enumerate() {
+            let [a, b, c] = t.map(|k| self.positions[k as usize]);
+            if let Some(d) = ray_triangle(origin, dir, a, b, c)
+                && best.is_none_or(|(bd, _)| d < bd)
+            {
+                best = Some((d, i));
+            }
+        }
+        best
+    }
+
+    /// Unit normal of a triangle (zero for a degenerate one).
+    pub fn triangle_normal(&self, i: usize) -> Vec3 {
+        let [a, b, c] = self.triangles[i].map(|k| self.positions[k as usize]);
+        (b - a).cross(c - a).normalize_or_zero()
+    }
+
+    /// Area of a triangle in mm².
+    pub fn triangle_area(&self, i: usize) -> f32 {
+        let [a, b, c] = self.triangles[i].map(|k| self.positions[k as usize]);
+        (b - a).cross(c - a).length() * 0.5
+    }
+
     /// Checks that every triangle points at an existing vertex.
     pub fn validate(&self) -> Result<(), MeshError> {
         let count = self.positions.len();
@@ -189,6 +263,30 @@ impl Mesh {
     }
 }
 
+/// Möller–Trumbore ray / triangle test. Hits from both sides count.
+pub fn ray_triangle(origin: Vec3, dir: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Option<f32> {
+    let e1 = b - a;
+    let e2 = c - a;
+    let p = dir.cross(e2);
+    let det = e1.dot(p);
+    if det.abs() < 1e-12 {
+        return None;
+    }
+    let inv = 1.0 / det;
+    let s = origin - a;
+    let u = s.dot(p) * inv;
+    if !(0.0..=1.0).contains(&u) {
+        return None;
+    }
+    let q = s.cross(e1);
+    let v = dir.dot(q) * inv;
+    if v < 0.0 || u + v > 1.0 {
+        return None;
+    }
+    let t = e2.dot(q) * inv;
+    (t > 1e-6).then_some(t)
+}
+
 struct Reader<'a> {
     bytes: &'a [u8],
     pos: usize,
@@ -257,6 +355,30 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn orientation_fix_and_transform() {
+        let mut m = Mesh::cuboid(Vec3::ONE);
+        for t in &mut m.triangles {
+            t.swap(1, 2);
+        }
+        assert!(m.volume() < 0.0);
+        assert!(m.fix_orientation());
+        assert!(m.volume() > 0.0);
+        let mirrored = m.transformed(&Mat4::from_scale(Vec3::new(-1.0, 1.0, 1.0)));
+        assert!(
+            mirrored.volume() > 0.0,
+            "mirroring keeps triangles facing out"
+        );
+    }
+
+    #[test]
+    fn raycast_hits_the_near_face() {
+        let m = Mesh::cuboid(Vec3::splat(10.0));
+        let (d, _) = m.raycast(Vec3::new(0.0, 0.0, 50.0), Vec3::NEG_Z).unwrap();
+        assert!((d - 40.0).abs() < 1e-4);
+        assert!(m.raycast(Vec3::new(20.0, 0.0, 50.0), Vec3::NEG_Z).is_none());
     }
 
     #[test]

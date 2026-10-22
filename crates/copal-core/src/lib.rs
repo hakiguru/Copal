@@ -7,14 +7,21 @@
 pub mod command;
 pub mod commands;
 pub mod document;
+mod library;
+pub mod ops;
+pub mod prints;
 pub mod project;
 pub mod script;
 mod session;
 pub mod settings;
+pub mod time;
 
-pub use command::{Command, CommandError, History};
+pub use command::{Batch, Command, CommandError, History};
 pub use commands::{CommandInfo, parse_command, registry};
-pub use document::{Document, ObjectId, SceneObject, Transform};
+pub use copal_presets as presets;
+pub use document::{Document, ObjectId, ProjectSettings, SceneObject, Transform};
+pub use library::{library, load_user_library, set_library, user_presets};
+pub use ops::{Section, SetSettings};
 pub use project::ProjectError;
 pub use session::{RunError, Session};
 pub use settings::{ColorMode, Settings, ThemeStyle};

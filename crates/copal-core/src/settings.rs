@@ -22,7 +22,7 @@ pub enum ThemeStyle {
     Art,
 }
 
-/// Dark or light colors. The art theme is dark only.
+/// Dark or light colors. Both themes have both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ColorMode {
@@ -31,16 +31,31 @@ pub enum ColorMode {
     Light,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub theme: ThemeStyle,
     pub mode: ColorMode,
+    /// Size of the move / rotate / scale handles in the 3D view, 1 = normal.
+    pub gizmo_size: f32,
 }
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            theme: ThemeStyle::Default,
+            mode: ColorMode::Dark,
+            gizmo_size: 1.0,
+        }
+    }
+}
+
+/// Smallest and biggest gizmo size.
+pub const GIZMO_SIZES: (f32, f32) = (0.4, 3.0);
 
 #[derive(Debug, Error)]
 pub enum SettingsError {
-    #[error("unknown setting `{0}` (known: theme, mode)")]
+    #[error("unknown setting `{0}` (known: theme, mode, gizmo)")]
     UnknownKey(String),
     #[error("`{key}` can be {allowed}, not `{value}`")]
     BadValue {
@@ -58,12 +73,17 @@ pub enum SettingsError {
 
 impl Settings {
     /// Every setting with the values it accepts, for help screens.
-    pub const KEYS: &[(&str, &str)] = &[("theme", "default | art"), ("mode", "dark | light")];
+    pub const KEYS: &[(&str, &str)] = &[
+        ("theme", "default | art"),
+        ("mode", "dark | light"),
+        ("gizmo", "0.4 – 3, size of the move/rotate/scale handles"),
+    ];
 
     pub fn get(&self, key: &str) -> Result<String, SettingsError> {
         match key {
             "theme" => Ok(self.theme.to_string()),
             "mode" => Ok(self.mode.to_string()),
+            "gizmo" => Ok(format!("{}", self.gizmo_size)),
             _ => Err(SettingsError::UnknownKey(key.to_string())),
         }
     }
@@ -77,17 +97,21 @@ impl Settings {
         match key {
             "theme" => self.theme = value.parse().map_err(|_| bad("default or art"))?,
             "mode" => self.mode = value.parse().map_err(|_| bad("dark or light"))?,
+            "gizmo" => {
+                let v: f32 = value.parse().map_err(|_| bad("a number from 0.4 to 3"))?;
+                if !(GIZMO_SIZES.0..=GIZMO_SIZES.1).contains(&v) {
+                    return Err(bad("a number from 0.4 to 3"));
+                }
+                self.gizmo_size = v;
+            }
             _ => return Err(SettingsError::UnknownKey(key.to_string())),
         }
         Ok(())
     }
 
-    /// The color mode actually used: the art theme is always dark.
+    /// The color mode in use.
     pub fn effective_mode(&self) -> ColorMode {
-        match self.theme {
-            ThemeStyle::Art => ColorMode::Dark,
-            ThemeStyle::Default => self.mode,
-        }
+        self.mode
     }
 
     /// Where settings are stored.
@@ -137,6 +161,21 @@ pub fn config_dir() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    Some(base.join("copal"))
+}
+
+/// Folder for data Copal keeps for the user, like the print history.
+/// `COPAL_DATA_DIR` overrides it (tests and portable installs use that).
+pub fn data_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("COPAL_DATA_DIR") {
+        return Some(PathBuf::from(dir));
+    }
+    if cfg!(windows) {
+        return std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("Copal"));
+    }
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?;
     Some(base.join("copal"))
 }
 
@@ -198,7 +237,14 @@ mod tests {
         s.set("mode", "light").unwrap();
         assert_eq!(s.get("theme").unwrap(), "art");
         assert_eq!(s.get("mode").unwrap(), "light");
-        assert_eq!(s.effective_mode(), ColorMode::Dark, "art is dark only");
+        assert_eq!(
+            s.effective_mode(),
+            ColorMode::Light,
+            "art has a light version too"
+        );
+        s.set("gizmo", "1.5").unwrap();
+        assert_eq!(s.gizmo_size, 1.5);
+        assert!(s.set("gizmo", "9").is_err());
         assert!(matches!(
             s.set("theme", "neon"),
             Err(SettingsError::BadValue { .. })
@@ -217,6 +263,7 @@ mod tests {
         let s = Settings {
             theme: ThemeStyle::Art,
             mode: ColorMode::Light,
+            gizmo_size: 1.25,
         };
         s.save_to(&path).unwrap();
         assert_eq!(Settings::load_from(&path).unwrap(), s);

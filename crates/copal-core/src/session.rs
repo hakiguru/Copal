@@ -40,6 +40,16 @@ impl Session {
         })
     }
 
+    /// Opens a project as a new, unsaved copy (used for print history snapshots, so the
+    /// snapshot itself is never overwritten).
+    pub fn open_copy(path: &Path) -> Result<Self, ProjectError> {
+        let doc = project::load(path)?;
+        let mut s = Self::new(doc);
+        // Unsaved until the user picks a place for it.
+        s.saved_revision = u64::MAX;
+        Ok(s)
+    }
+
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }

@@ -1,0 +1,26 @@
+id = "elegoo/mars-5-ultra"
+brand = "Elegoo"
+model = "Mars 5 Ultra"
+status = "experimental"
+
+[screen]
+resolution = [8520, 4320]        # 153.36 / 0.018 × 77.76 / 0.018
+size_mm = [153.36, 77.76]
+mirror_x = false
+mirror_y = true
+greyscale_bits = 8
+
+[build]
+height_mm = 165.0
+
+[file]
+format = "goo"
+format_version = "V3.0"
+thumbnails = [[116, 116], [290, 290]]
+anti_aliasing_levels = 8
+
+[motion]
+supports_tsmc = true
+
+[sources]
+values = "Spec sheet: 153.36 × 77.76 × 165 mm, 18 µm XY (digitec.ch, polyspectra.com)"

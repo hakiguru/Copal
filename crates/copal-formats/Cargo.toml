@@ -10,6 +10,16 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+copal-core.workspace = true
+copal-slice.workspace = true
+glam.workspace = true
+rayon.workspace = true
+image.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+copal-mesh.workspace = true
 
 [lints]
 workspace = true

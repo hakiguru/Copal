@@ -1,3 +1,9 @@
-//! Readers and writers for printer files: .goo, .ctb and more.
+//! Readers and writers for printer files, and the export of a project to one.
 //!
-//! This crate is a placeholder. Its work starts in Copal 0.1 (see `docs/ROADMAP.md`).
+//! Supported now: Elegoo `.goo`. Next: `.ctb`, Photon Workshop formats (see `docs/FORMATS.md`).
+
+pub mod export;
+pub mod goo;
+pub mod thumbnail;
+
+pub use export::{ExportError, ExportReport, export};

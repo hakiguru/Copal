@@ -12,10 +12,13 @@ use thiserror::Error;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
-use crate::document::{Document, ObjectId, SceneObject, Transform};
+use crate::document::{Document, ObjectId, ProjectSettings, SceneObject, Transform};
 
 /// Version of the `project.json` layout. Bump it and add a migration when the layout changes.
-pub const FORMAT_VERSION: u32 = 1;
+///
+/// - 1: name, printer, resin, objects.
+/// - 2: adds `settings` (print, supports, hollow, layout). Version 1 files get the defaults.
+pub const FORMAT_VERSION: u32 = 2;
 const FORMAT_NAME: &str = "copal-project";
 const PROJECT_JSON: &str = "project.json";
 
@@ -48,6 +51,8 @@ struct ProjectJson {
     name: String,
     printer: Option<String>,
     resin: Option<String>,
+    #[serde(default)]
+    settings: ProjectSettings,
     next_id: u64,
     objects: Vec<ObjectJson>,
 }
@@ -75,6 +80,7 @@ pub fn write_to<W: Write + Seek>(doc: &Document, writer: W) -> Result<(), Projec
         name: doc.name.clone(),
         printer: doc.printer.clone(),
         resin: doc.resin.clone(),
+        settings: doc.settings,
         next_id: doc.next_id,
         objects: doc
             .objects()
@@ -150,6 +156,7 @@ pub fn read_from<R: Read + Seek>(reader: R) -> Result<Document, ProjectError> {
         name: json.name,
         printer: json.printer,
         resin: json.resin,
+        settings: json.settings,
         objects,
         next_id: json.next_id,
     })

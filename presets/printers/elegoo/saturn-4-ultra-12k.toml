@@ -1,0 +1,26 @@
+id = "elegoo/saturn-4-ultra-12k"
+brand = "Elegoo"
+model = "Saturn 4 Ultra 12K"
+status = "experimental"
+
+[screen]
+resolution = [11520, 5120]
+size_mm = [218.88, 122.88]
+mirror_x = false
+mirror_y = true
+greyscale_bits = 8
+
+[build]
+height_mm = 220.0
+
+[file]
+format = "goo"
+format_version = "V3.0"
+thumbnails = [[116, 116], [290, 290]]
+anti_aliasing_levels = 8
+
+[motion]
+supports_tsmc = true
+
+[sources]
+values = "Spec sheet: 11520 × 5120 px, 218.88 × 122.88 × 220 mm (adorama.com, elg501010362)"

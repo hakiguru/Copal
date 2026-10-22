@@ -46,6 +46,58 @@ pub trait Command: Debug + Send + Sync {
     fn apply(&self, doc: &mut Document) -> Result<Box<dyn Command>, CommandError>;
 }
 
+/// Several commands applied as one step: one undo reverts them all.
+#[derive(Debug)]
+pub struct Batch {
+    /// Shown in the history and echoed in the console.
+    pub label: Option<String>,
+    pub commands: Vec<Box<dyn Command>>,
+}
+
+impl Batch {
+    pub fn new(label: impl Into<String>, commands: Vec<Box<dyn Command>>) -> Self {
+        Self {
+            label: Some(label.into()),
+            commands,
+        }
+    }
+
+    pub(crate) fn inverse(commands: Vec<Box<dyn Command>>) -> Self {
+        Self {
+            label: None,
+            commands,
+        }
+    }
+}
+
+impl Command for Batch {
+    fn name(&self) -> &'static str {
+        "batch"
+    }
+
+    fn to_text(&self) -> Option<String> {
+        self.label.clone()
+    }
+
+    fn apply(&self, doc: &mut Document) -> Result<Box<dyn Command>, CommandError> {
+        let mut inverses: Vec<Box<dyn Command>> = Vec::with_capacity(self.commands.len());
+        for cmd in &self.commands {
+            match cmd.apply(doc) {
+                Ok(inv) => inverses.push(inv),
+                Err(e) => {
+                    // Roll back what was already applied, so a failed batch changes nothing.
+                    for inv in inverses.into_iter().rev() {
+                        let _ = inv.apply(doc);
+                    }
+                    return Err(e);
+                }
+            }
+        }
+        inverses.reverse();
+        Ok(Box::new(Batch::inverse(inverses)))
+    }
+}
+
 #[derive(Debug)]
 struct Entry {
     /// What the user did (shown in the history panel).
