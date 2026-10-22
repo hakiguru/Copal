@@ -128,12 +128,24 @@ Copal includes a calibration wizard: print one small test, pick the best chip, a
 settings made for **your** bottle. Built-in presets are just the starting point.
 - [ ] **1.0** Stable release
 
-## Try the preview
+## Install
 
-**Download:** grab the archive for Linux or Windows from
-[Releases](https://github.com/hakiguru/Copal/releases), unpack it and run `copal`, `copal-lite` or `copal-cli`.
+Download from [Releases](https://github.com/hakiguru/Copal/releases/latest):
 
-**Build it yourself** (needs [Rust](https://rustup.rs)):
+| System | File | How |
+|---|---|---|
+| **Windows** | `Copal-Setup-<version>.exe` | Run the installer. Or take `Copal-<version>-portable.exe` and just run it. |
+| **Ubuntu / Debian / Mint** | `copal_<version>_amd64.deb` | `sudo apt install ./copal_<version>_amd64.deb` |
+| **Fedora / openSUSE** | `copal-<version>-1.x86_64.rpm` | `sudo dnf install ./copal-<version>-1.x86_64.rpm` |
+| **Arch / Manjaro** | `copal-bin.PKGBUILD` | Save it as `PKGBUILD` in an empty folder, run `makepkg -si` |
+| **Any Linux** | `Copal-<version>-x86_64.AppImage` | `chmod +x` it and run |
+| **Flatpak** | `copal-<version>.flatpak` | `flatpak install --user copal-<version>.flatpak` |
+
+Files with **lite** in the name contain only Copal Lite and the terminal tool, for weak computers.
+The full packages include Copal Lite too. Coming later: an apt repository, Flathub and the AUR,
+so updates arrive with your system.
+
+**Or build it yourself** (needs [Rust](https://rustup.rs)):
 
 ```sh
 git clone https://github.com/hakiguru/Copal

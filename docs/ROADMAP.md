@@ -20,6 +20,18 @@ Black-box study of LycheeSlicer and Chitubox, rules in `docs/RESEARCH.md`.
 
 ---
 
+## Distribution track
+
+- [x] Release files: Windows installer + portable exe, deb, rpm, AppImage, Flatpak bundle, PKGBUILD (0.0.2)
+- [ ] AUR: publish `copal-bin` and `copal-lite-bin` (needs an AUR account and an SSH key secret)
+- [ ] apt repository on GitHub Pages, signed with a project GPG key → `sudo apt install copal`
+- [ ] Flathub: from-source manifest (vendored Cargo crates), screenshots, submission PR — once the
+      app slices (Flathub does not accept placeholder apps)
+- [ ] winget and Scoop manifests for Windows
+- [ ] Code signing for the Windows installer (avoids the SmartScreen warning)
+
+---
+
 ## 0.0 — Foundation ✅ released
 
 - [x] Cargo workspace with all crates from `docs/ARCHITECTURE.md` (stubs for later ones)

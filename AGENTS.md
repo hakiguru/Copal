@@ -89,7 +89,9 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 
 - Main test printer: **Elegoo Saturn 4 Ultra 16K** (`.goo` format).
 - Main test resin: **Anycubic ABS-Like Resin Pro 2** (clear and grey).
-  Known good settings on that printer: bottom exposure 20 s, normal exposure 1.5 s.
+  Known good settings on that printer (from the owner's printed files): 0.03 mm layers,
+  1.3–1.4 s exposure, 5 bottom layers × 29 s, 5 transition layers, two-stage lift.
+  See `presets/` and `docs/research/lychee-2026-10.md`.
 - Other printers are marked *experimental* until someone confirms a real print.
 
 ## Repository map
@@ -105,6 +107,9 @@ docs/FEATURES.md   feature checklist vs Lychee Lite / Plus and Chitubox
 docs/RESEARCH.md   how we study Lychee and other slicers (black-box only)
 docs/CALIBRATION.md  calibration wizard: finding exposure for your resin batch
 CHANGELOG.md       release notes
+presets/           printer and resin presets (TOML)
+packaging/         installers: Linux (deb, rpm, AppImage, AUR, Flatpak) and Windows (Inno Setup)
+docs/research/     black-box notes about other slicers
 wiki/              wiki pages (published automatically)
 ```
 

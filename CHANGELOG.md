@@ -3,6 +3,16 @@
 All notable changes to Copal. Newest first.
 Each version here is also published as a GitHub Release.
 
+## 0.0.2
+
+- Installers! Windows setup (.exe) and portable .exe files
+- Linux packages: .deb (Ubuntu, Debian, Mint), .rpm (Fedora, openSUSE), AppImage, Flatpak bundle, PKGBUILD for Arch
+- Start menu / app menu shortcuts for Copal and Copal Lite, and .copal files open in Copal
+- The crystal icon is built into the Windows .exe files
+- The console looks more like a terminal: the input line follows the last output, the prompt and the text line up, and a click anywhere in the console focuses it
+- First presets: Elegoo Saturn 4 Ultra 16K and Anycubic ABS-Like Pro 2 Grey with tested settings
+- Notes from studying Lychee Slicer: supports, hollowing, orientation and the .goo files it writes
+
 ## 0.0.1
 
 - New default theme: calm dark or light colors with simple orange outlines
