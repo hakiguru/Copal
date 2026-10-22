@@ -78,6 +78,8 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 
 - Every version (each roadmap milestone and every fix release after it) gets its own commit(s),
   a git tag `vX.Y.Z` and a **GitHub Release** with a changelog.
+- To release: bump `version` in the root `Cargo.toml`, add a `## X.Y.Z` section to `CHANGELOG.md`,
+  push to `main`. `.github/workflows/release.yml` builds, tags and publishes by itself.
 - The changelog is plain English, short bullets, ready to paste, no "see README" pointers.
   Same text goes to `CHANGELOG.md`.
 - CI attaches all packages to the release (see `docs/ARCHITECTURE.md` → Packaging).
