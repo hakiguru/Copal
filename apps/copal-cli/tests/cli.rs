@@ -81,3 +81,28 @@ fn lists_commands() {
     let list: serde_json::Value = serde_json::from_str(&ok(&["--json", "commands"])).unwrap();
     assert!(list.as_array().unwrap().len() >= 10);
 }
+
+#[test]
+fn settings_show_and_change() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_copal-cli"))
+            .env("COPAL_CONFIG_DIR", dir.path())
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let out = run(&["settings"]);
+    assert!(String::from_utf8_lossy(&out.stdout).contains("theme  = default"));
+
+    let out = run(&["settings", "theme=art", "mode=light"]);
+    assert!(out.status.success());
+    let out = run(&["--json", "settings"]);
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["theme"], "art");
+    assert_eq!(v["mode"], "light");
+
+    let out = run(&["settings", "theme=neon"]);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("default or art"));
+}

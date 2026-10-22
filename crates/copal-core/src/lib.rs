@@ -10,12 +10,14 @@ pub mod document;
 pub mod project;
 pub mod script;
 mod session;
+pub mod settings;
 
 pub use command::{Command, CommandError, History};
 pub use commands::{CommandInfo, parse_command, registry};
 pub use document::{Document, ObjectId, SceneObject, Transform};
 pub use project::ProjectError;
 pub use session::{RunError, Session};
+pub use settings::{ColorMode, Settings, ThemeStyle};
 
 /// Copal version, shared by every crate and app.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use copal_core::{Document, Session, registry};
+use copal_core::{Document, Session, Settings, registry};
 use serde_json::json;
 
 /// Copal — a free slicer for resin 3D printers. Everything the apps can do, from the terminal.
@@ -62,6 +62,11 @@ enum Cmd {
     },
     /// List all commands of the text language.
     Commands,
+    /// Show or change app settings, e.g. `copal-cli settings theme=art mode=light`.
+    Settings {
+        /// Changes as key=value. Without any, prints the current settings.
+        changes: Vec<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -135,6 +140,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 .map_err(|e| format!("{}: {e}", script.display()))?;
             finish(&mut session, dry_run, count, cli.json)
         }
+        Cmd::Settings { changes } => settings(&changes, cli.json),
         Cmd::Commands => {
             if cli.json {
                 let list: Vec<_> = registry()
@@ -150,6 +156,35 @@ fn run(cli: Cli) -> Result<(), String> {
             Ok(())
         }
     }
+}
+
+fn settings(changes: &[String], json_out: bool) -> Result<(), String> {
+    let path = Settings::path().map_err(|e| e.to_string())?;
+    let mut s = Settings::load_from(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    for change in changes {
+        let (key, value) = change
+            .split_once('=')
+            .ok_or_else(|| format!("expected key=value, got `{change}`"))?;
+        s.set(key, value).map_err(|e| e.to_string())?;
+    }
+    if !changes.is_empty() {
+        s.save_to(&path).map_err(|e| e.to_string())?;
+    }
+    if json_out {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&s).map_err(|e| e.to_string())?
+        );
+    } else {
+        for (key, values) in Settings::KEYS {
+            println!(
+                "{key:<6} = {:<8} ({values})",
+                s.get(key).unwrap_or_default()
+            );
+        }
+        println!("file   = {}", path.display());
+    }
+    Ok(())
 }
 
 fn open(file: &Path) -> Result<Session, String> {
