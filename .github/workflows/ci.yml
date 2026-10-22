@@ -19,7 +19,17 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo clippy
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets --message-format=short -- -D warnings 2>&1 | tee clippy.txt
+      - name: Show clippy findings on the files
+        if: failure()
+        shell: bash
+        run: |
+          grep -E '^[^ ]+:[0-9]+:[0-9]+: (error|warning)' clippy.txt \
+            | sed -E 's/^([^:]+):([0-9]+):([0-9]+): (.*)$/::error file=\1,line=\2,col=\3::\4/' || true
 
   test:
     name: Test (${{ matrix.os }})
