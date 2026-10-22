@@ -555,38 +555,14 @@ impl Workspace {
     }
 
     /// The console. Default theme: looks like a plain terminal. Art theme: amber log.
+    ///
+    /// Like a real terminal, the input line follows right after the last output line.
     pub fn console_panel(&mut self, ui: &mut Ui, look: &Look) {
         let p = look.pal;
         let font = FontId::monospace(13.0);
         // Keep scrolled-away lines inside the panel margin.
         ui.set_clip_rect(ui.max_rect());
         ui.spacing_mut().item_spacing.y = 2.0;
-        let input_h = ui.spacing().interact_size.y + 8.0;
-        let height = (ui.available_height() - input_h).max(20.0);
-        ScrollArea::vertical()
-            .max_height(height)
-            .stick_to_bottom(true)
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                for (kind, text) in &self.console {
-                    match kind {
-                        LineKind::Input { prompt } => {
-                            ui.horizontal_wrapped(|ui| {
-                                ui.spacing_mut().item_spacing.x = 0.0;
-                                prompt_labels(ui, look, prompt, &font);
-                                ui.label(RichText::new(text).font(font.clone()).color(p.term_fg));
-                            });
-                        }
-                        LineKind::Info => {
-                            let color = if look.art() { p.text_weak } else { p.term_fg };
-                            ui.label(RichText::new(text).font(font.clone()).color(color));
-                        }
-                        LineKind::Error => {
-                            ui.label(RichText::new(text).font(font.clone()).color(p.term_error));
-                        }
-                    }
-                }
-            });
 
         // Shell keys, handled before the text field sees them.
         let id = Id::unique("copal-console-input");
@@ -609,22 +585,54 @@ impl Workspace {
         }
 
         let place = self.prompt_place();
-        let r = ui
-            .horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                prompt_labels(ui, look, &place, &font);
-                ui.add(
-                    TextEdit::singleline(&mut self.console_input)
-                        .id(id)
-                        .font(font.clone())
-                        .text_color(p.term_fg)
-                        .frame(egui::Frame::NONE)
-                        .lock_focus(true)
-                        .hint_text(RichText::new("help").font(font.clone()).color(p.text_faint))
-                        .desired_width(f32::INFINITY),
-                )
+        let console = &self.console;
+        let input = &mut self.console_input;
+        let r = ScrollArea::vertical()
+            .stick_to_bottom(true)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                for (kind, text) in console {
+                    match kind {
+                        LineKind::Input { prompt } => {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.spacing_mut().item_spacing.x = 0.0;
+                                prompt_labels(ui, look, prompt, &font);
+                                ui.label(RichText::new(text).font(font.clone()).color(p.term_fg));
+                            });
+                        }
+                        LineKind::Info => {
+                            let color = if look.art() { p.text_weak } else { p.term_fg };
+                            ui.label(RichText::new(text).font(font.clone()).color(color));
+                        }
+                        LineKind::Error => {
+                            ui.label(RichText::new(text).font(font.clone()).color(p.term_error));
+                        }
+                    }
+                }
+                // Top-aligned row: the text field puts its text at the top, so the prompt must too.
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    prompt_labels(ui, look, &place, &font);
+                    ui.add(
+                        TextEdit::singleline(input)
+                            .id(id)
+                            .font(font.clone())
+                            .text_color(p.term_fg)
+                            .frame(egui::Frame::NONE)
+                            // No inner margin: the text sits on the same line as the prompt.
+                            .margin(egui::Margin::ZERO)
+                            .lock_focus(true)
+                            .hint_text(RichText::new("help").font(font.clone()).color(p.text_faint))
+                            .desired_width(f32::INFINITY),
+                    )
+                })
+                .inner
             })
             .inner;
+        // Clicking anywhere in the console puts the cursor in the input line.
+        if ui.rect_contains_pointer(ui.max_rect()) && ui.input(|i| i.pointer.primary_clicked()) {
+            r.request_focus();
+        }
         self.console_focused = r.has_focus();
         if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
             let line = std::mem::take(&mut self.console_input);
