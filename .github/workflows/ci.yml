@@ -30,6 +30,7 @@ jobs:
         run: |
           grep -E '^[^ ]+:[0-9]+:[0-9]+: (error|warning)' clippy.txt \
             | sed -E 's/^([^:]+):([0-9]+):([0-9]+): (.*)$/::error file=\1,line=\2,col=\3::\4/' || true
+          grep -v '^ *Compiling\|^ *Checking' clippy.txt | tail -n 25 | sed 's/^/::warning::/'
 
   test:
     name: Test (${{ matrix.os }})
