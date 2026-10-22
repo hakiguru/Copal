@@ -8,7 +8,7 @@ Read it before changing anything. Keep it short and up to date.
 Copal is a free, open-source (MIT) slicer for MSLA / LCD resin 3D printers.
 
 - **Design** feels like LycheeSlicer: dark, clean, modern, a big viewport, a clear
-  step-by-step workflow (Prepare → Supports → Slice & Export).
+  step-by-step workflow (Layout → Prepare → Export).
   We take the *feel*, not the assets: no copied icons, images, texts or layouts pixel-for-pixel.
 - **Features** match LycheeSlicer and Chitubox combined, with every feature available in the GUI.
 - **Editing** works like Blender: Object mode and Edit mode, G/R/S hotkeys, axis locks,
@@ -46,8 +46,9 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 ## Tech stack (decided)
 
 - **Language:** Rust (stable). One Cargo workspace.
-- **GUI:** `egui` + `eframe`. Full app renders with `wgpu`; Lite renders with `glow` (OpenGL).
-- **CLI:** `clap`; TUI with `ratatui`.
+- **GUI:** `egui` + `eframe` with `glow`. Both apps share one OpenGL renderer that works on
+  OpenGL 2.1 / GLES 2 / GL 3 core and Mesa llvmpipe.
+- **CLI:** `clap`. The shell (`copal-shell`) is shared by `copal-cli shell` and the GUI consoles.
 - **Details:** `docs/ARCHITECTURE.md`.
 
 ## Ground rules
@@ -97,7 +98,7 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 ## Repository map
 
 ```
-assets/            logo and the script that draws it
+assets/            logo, the script that draws it, test-models/ (our own small test models)
 docs/ROADMAP.md    milestones and tasks
 docs/ARCHITECTURE.md  crates, data flow, tech choices
 docs/FORMATS.md    printer file formats and priorities
@@ -118,9 +119,15 @@ The user guide is the GitHub wiki. Edit pages in `wiki/` in this repo — a GitH
 When a feature lands, update its wiki page and remove the "planned" banner.
 
 ```
-crates/copal-core       document, Command system, undo/redo, text language, .copal files
-crates/copal-mesh       triangle mesh, binary mesh format
-crates/copal-ui-common  theme, crystal borders, widgets, viewport, shared workspace panels
+crates/copal-core       document, Command system, undo/redo, text language, .copal files,
+                        project settings, print history, app settings
+crates/copal-mesh       triangle mesh, STL/OBJ/3MF import, binary mesh format, ray casts
+crates/copal-presets    printer/resin database (embedded from presets/), settings structs,
+                        personal presets
+crates/copal-slice      layer rasterizer (non-zero winding, anti-aliasing, streaming rows)
+crates/copal-formats    .goo writer/reader, thumbnails, export of a project
+crates/copal-shell      shell commands shared by the GUI consoles and copal-cli shell
+crates/copal-ui-common  theme, crystal borders, widgets, OpenGL 3D view, gizmos, panels
 crates/copal-*          other engine crates (stubs until their milestone)
 apps/copal              full app        apps/copal-lite   Lite        apps/copal-cli   CLI
 tools/ui-shot.sh        screenshot an app in a virtual display (Xvfb) to check the UI
@@ -131,6 +138,10 @@ tools/ui-shot.sh        screenshot an app in a virtual display (Xvfb) to check t
 - Before a commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo test --workspace`. CI runs the same plus `cargo deny`.
 - UI changes: check them with `tools/ui-shot.sh` (add `--interact` to click and type).
-- Two themes: **Default** (neutral dark/light, simple orange outlines) and **Art** (amber crystal
-  borders, dark only). Widgets never hard-code colors: take them from `Look::pal` (`palette.rs`)
+- `unsafe` is denied everywhere except the OpenGL renderer (`copal-ui-common/src/render.rs`).
+- Slicing crates are optimized in debug builds too (see `[profile.dev.package…]` in `Cargo.toml`).
+- The `.goo` image orientation for printers with `mirror_y` is not confirmed yet: don't call the
+  format stable before the F test model (`assets/test-models/`) matches another slicer's output.
+- Two themes, each dark or light: **Default** (neutral, simple orange outlines) and **Art** (amber
+  crystal borders). Widgets never hard-code colors: take them from `Look::pal` (`palette.rs`)
   and draw outlines with `Look::outline`, which picks the right style. Default is what users see first.

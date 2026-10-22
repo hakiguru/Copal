@@ -15,9 +15,24 @@ Built-in resin presets are **starting points**. Exposure really depends on the p
 color, the batch and the room temperature, so the real settings come from the user's own
 calibration (`docs/CALIBRATION.md`) and are saved as a personal preset.
 
-## Personal resin presets
+## Personal presets (built in 0.1)
 
-Saved in the user config folder, never overwritten by updates:
+Saved in the user config folder (`~/.config/copal/presets`, `%APPDATA%\Copal\presets`), never
+overwritten by updates. One folder per kind:
+
+| Folder | Holds | Saved from |
+|---|---|---|
+| `resins/` | a whole resin with a profile per printer | Resin tab → My resin, `presets save resin <name>` |
+| `exposure/` | layer height, exposure, bottom and transition layers, light power | Resin tab |
+| `motion/` | anti-aliasing, lift / retract (two stages), waits | Print tab |
+| `supports/` | support settings (built in: light, medium, heavy) | Supports tab |
+| `hollow/` | hollowing and drain holes | Hollow tab |
+| `layout/` | keep on plate, spacing, snapping | Layout tab |
+
+A personal resin gets the id `my/<name>` and shows up in the resin list. Loading a preset runs one
+`<section>.set …` command, so it is one undo step.
+
+Planned (calibration wizard, 0.2) — batch, bottle date and temperature notes:
 
 ```toml
 id = "my/abs-like-pro-2-grey-2410"

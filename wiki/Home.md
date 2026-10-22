@@ -10,9 +10,10 @@
 ---
 
 > [!NOTE]
-> **Copal 0.0.1 preview is out** — the foundation: project files, undo/redo, the terminal tool and
-> both apps. It can't slice yet. Most pages here describe how things **will** work; each page says
-> which version brings it.
+> **Copal 0.1 slices!** Import STL / OBJ / 3MF, place models with handles or by dragging them over
+> the plate, set up exposure and lift, look through the layers and export an Elegoo `.goo` file.
+> Every export goes to the print history with a copy of the project. Supports and hollowing come
+> next (0.2 → 0.3); pages for planned features say which version brings them.
 
 ## Welcome
 
@@ -35,8 +36,9 @@ This wiki is the user guide. It grows together with the app.
 | Prepare | Supports & slicing | Reference |
 |---|---|---|
 | [Interface overview](https://github.com/hakiguru/Copal/wiki/Interface-Overview) | [Supports](https://github.com/hakiguru/Copal/wiki/Supports) | [Hotkeys](https://github.com/hakiguru/Copal/wiki/Hotkeys) |
-| [Prepare: place and orient](https://github.com/hakiguru/Copal/wiki/Prepare) | [Hollowing and drain holes](https://github.com/hakiguru/Copal/wiki/Hollowing-and-Drain-Holes) | [Command line](https://github.com/hakiguru/Copal/wiki/Command-Line) |
-| [Editing models](https://github.com/hakiguru/Copal/wiki/Editing) | [Slice and export](https://github.com/hakiguru/Copal/wiki/Slice-and-Export) | [Project files](https://github.com/hakiguru/Copal/wiki/Project-Files) |
+| [Layout: place, rotate, scale](https://github.com/hakiguru/Copal/wiki/Layout) | [Hollowing and drain holes](https://github.com/hakiguru/Copal/wiki/Hollowing-and-Drain-Holes) | [Command line](https://github.com/hakiguru/Copal/wiki/Command-Line) |
+| [Prepare: checks, supports, hollowing](https://github.com/hakiguru/Copal/wiki/Prepare) | [Slice and export](https://github.com/hakiguru/Copal/wiki/Slice-and-Export) | [Project files](https://github.com/hakiguru/Copal/wiki/Project-Files) |
+| [Editing models](https://github.com/hakiguru/Copal/wiki/Editing) | [Print history](https://github.com/hakiguru/Copal/wiki/Print-History) | [Resin presets](https://github.com/hakiguru/Copal/wiki/Resin-Presets) |
 
 ## Printers and resins
 
@@ -68,7 +70,9 @@ This wiki is the user guide. It grows together with the app.
 Без рекламы, без подписок и без аккаунтов. Работает на Windows и Linux, есть лёгкая версия
 для слабых ноутбуков и полноценная работа через терминал.
 
-Проект на стадии планирования. Вики пока на английском; русские версии страниц появятся
-вместе с первым релизом.
+С версии 0.1 Copal нарезает модели в файлы `.goo` для Elegoo: импорт STL / OBJ / 3MF, гизмо для
+перемещения, поворота и масштаба, перетаскивание модели по столу, настройки смолы и печати,
+предпросмотр слоёв и история печати с копией проекта. Поддержки и опустошение — в 0.2 → 0.3.
+Вики пока на английском; русский интерфейс и страницы появятся в 0.2.
 
 </details>

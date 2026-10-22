@@ -1,34 +1,38 @@
-> [!NOTE]
-> 🚧 This page describes a planned feature. It arrives in **Copal 0.4**. Details may change.
-
-
 ## Copal
 
-- **Top bar** — menus, printer and resin pickers.
-- **Workflow tabs** (left) — **Prepare → Supports → Slice & Export**. The tool shelf under them
-  changes with the step.
-- **3D viewport** (center) — the build plate and your models.
-- **Inspector** (right) — settings of the selected object or tool.
-- **Scene list** (right, bottom) — objects, supports, rafts, modifiers.
-- **Bottom bar** — the console and the layer slider.
+- **Top bar** — the steps **Layout → Prepare → Export**, printer and resin pickers, Open, Save,
+  History and Preferences.
+- **Tools** (left) — change with the step. Layout: import, move / rotate / scale, mirror,
+  duplicate, arrange. Prepare: checks (supports and hollowing arrive in 0.2 → 0.3). Export: slice,
+  layer preview, recent prints.
+- **3D view** (center) — the build plate, your models and the handles of the selected model.
+  Buttons on top: Iso / Top / Front / Side views, Overhangs, handle size − / +, and Layers in the
+  Export step. A small triangle in front of the plate marks the front.
+- **Settings tabs** (right) — **Object**, **Resin**, **Print**, **Layout**, **Supports**, **Hollow**.
+  When the panel is narrow, the tabs wrap into two or more rows. Each tab except Object can save
+  and load your own presets.
+- **Console** (bottom) and the **status bar** with printer, resin, layer height, exposure, layer
+  count and print time.
+
+Every panel can be resized: drag its edge.
 
 ## Copal Lite
 
-One window with a menu bar, a left panel (printer, resin, objects, transform, supports, slice)
-and the 3D view. Every feature is also in the **command palette** (`F3` or `Ctrl+P`).
+The same features in a plain window: menus (File, Edit, Help) with the steps next to them, tools on
+the left, settings tabs on the right, the console at the bottom.
 
 ## Themes
 
-Open **Settings** (button in the top bar, or Ctrl+,):
+Open **Preferences** (top bar, or Ctrl+,):
 
-- **Default** — calm colors with simple orange outlines, in **dark** or **light** mode.
-- **Art** — warm amber with crystal borders, like the logo (dark only).
+- **Default** — calm colors with simple orange outlines.
+- **Art** — warm amber with crystal borders, like the logo.
 
-The choice is saved and shared by Copal, Copal Lite and copal-cli.
-From the console: `settings theme=art`, `settings theme=default mode=light`.
+Both come in **dark** and **light**. The choice is saved and shared by Copal, Copal Lite and
+copal-cli. From the console: `settings` in copal-cli, e.g. `copal-cli settings theme=art mode=light`.
 
 ## Console
 
-It works like a terminal: a `copal:project$` prompt, ↑ / ↓ for earlier commands, Tab to complete.
-Type the same commands as in [[Command line|Command-Line]].
-Everything you click is also shown there as a command, so you can learn and copy it.
+It works like a terminal: a `copal:project$` prompt, ↑ / ↓ for earlier commands, Tab to complete
+command names, setting names, printers and resins. Type `help`. It understands the same commands as
+`copal-cli shell` — see [[Command line|Command-Line]].

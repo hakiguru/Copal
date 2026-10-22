@@ -8,11 +8,13 @@
 
 **User guide**
 - [[Interface overview|Interface-Overview]]
-- [[Prepare]]
+- [[Layout: place, rotate, scale|Layout]]
+- [[Prepare: checks, supports, hollowing|Prepare]]
 - [[Supports]]
 - [[Hollowing & drain holes|Hollowing-and-Drain-Holes]]
 - [[Editing models|Editing]]
 - [[Slice & export|Slice-and-Export]]
+- [[Print history|Print-History]]
 - [[Project files|Project-Files]]
 - [[Hotkeys]]
 - [[Command line|Command-Line]]

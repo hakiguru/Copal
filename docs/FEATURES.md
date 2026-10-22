@@ -5,12 +5,13 @@ The Lychee list comes from its public pricing page (Lychee Slicer 8, October 202
 "Milestone" points to `docs/ROADMAP.md`.
 
 Legend: **L** = Lychee Lite (free), **P** = Lychee Plus (paid), **C** = Chitubox, **A** = Copal extra.
+✅ = done in the version shown.
 
 ## General
 
 | Feature | From | Milestone |
 |---|---|---|
-| Core slicing for resin printers | L | 0.1 |
+| Core slicing for resin printers | L | ✅ 0.1 |
 | Multi-plate projects (several build plates in one project) | L limited, P full | 0.5 |
 | "Magic button": one click → orient, support, arrange, ready to print | L basic | 0.5 |
 | "Batch button": the same for many models at once | P | 0.5 |
@@ -18,7 +19,7 @@ Legend: **L** = Lychee Lite (free), **P** = Lychee Plus (paid), **C** = Chitubox
 | Local backups and autosave (no cloud, no account) | L | 0.4 |
 | Multi-language UI | L | 0.2 (EN, RU) |
 | Works fully offline, no ads, no account | A | always |
-| Full CLI, shell, scripts, macros | A | 0.1 → 0.4 |
+| Full CLI, shell, scripts, macros | A | ✅ CLI, shell, scripts (0.1); macros 0.4 |
 
 ## Supports
 
@@ -93,3 +94,17 @@ Legend: **L** = Lychee Lite (free), **P** = Lychee Plus (paid), **C** = Chitubox
 | Calibration wizard per resin batch | A | 0.2 |
 
 Not planned: model library / store, AI model generation, cloud accounts.
+
+## Done in 0.1 (Copal extras and basics)
+
+| Feature | From | Milestone |
+|---|---|---|
+| Import STL, OBJ, 3MF; drag and drop | L, C | ✅ 0.1 |
+| Move / rotate / scale gizmos with adjustable size; drag on the plate keeping height | L, C | ✅ 0.1 |
+| Mirror, duplicate, arrange, drop to plate, snapping | L, C | ✅ 0.1 |
+| Overhang colouring | L | ✅ 0.1 |
+| Anti-aliasing, bottom / transition layers, two-stage lift | L, C | ✅ 0.1 |
+| Layer preview | L, C | ✅ 0.1 |
+| Print history with ratings | L | ✅ 0.1 |
+| Print history keeps a snapshot of the project to reopen | A | ✅ 0.1 |
+| Personal presets for every settings group, user resins | L, C | ✅ 0.1 |

@@ -3,6 +3,41 @@
 All notable changes to Copal. Newest first.
 Each version here is also published as a GitHub Release.
 
+## 0.1.0
+
+Copal slices! This is the first version that turns models into a printer file.
+
+- Slicing to Elegoo .goo files: anti-aliasing, bottom and transition layers, two-stage lift and retract, wait times, previews inside the file
+- Fast multithreaded slicer: overlapping and hollow models slice correctly, a 16K screen is no problem
+- Import STL, OBJ and 3MF models: with the Import button, Ctrl+I, by dropping files on the window, or with `copal-cli import`
+- New 3D view drawn on the graphics card, with a real perspective camera: orbit, pan, zoom to the cursor, Iso / Top / Front / Side views
+- Move, rotate and scale handles (gizmos) in the 3D view. Make them bigger or smaller with the − / + buttons or in Preferences
+- Drag a model with the mouse to move it over the plate: it follows the cursor and keeps its height from any camera angle
+- Hold Ctrl to snap moves, rotations and scaling to steps you choose
+- G / R / S switch between move, rotate and scale, like in Blender
+- Duplicate (Ctrl+D), mirror X / Y / Z, drop to plate, reset rotation, arrange all models on the plate
+- Models stay on the plate after rotating or scaling (can be turned off)
+- Exact size fields in millimetres, with "keep proportions"
+- The workflow tabs are now Layout, Prepare and Export
+- Settings tabs on the right: Object, Resin, Print, Layout, Supports, Hollow. They wrap into more rows when the panel is narrow
+- Save and load your own presets for exposure, motion, layout, supports and hollowing, and save your settings as your own resin
+- Light, medium and heavy support presets (used by auto supports in 0.3)
+- Overhang view: faces that need supports turn red (always on in Prepare)
+- Layer preview in the Export step: scroll through every layer before you print
+- Slicing runs in the background with a progress bar and Cancel
+- Print history: every export is saved with a picture, its settings and a copy of the project exactly as it was sliced. Rate prints with stars, mark them as printed well or failed, add notes, and open the old project again
+- All panels can be resized: tools, settings and the console
+- A small triangle in front of the plate shows where the front is
+- The Art theme now has a light version too
+- Built-in file browser for opening, saving, importing and exporting (works without a desktop too)
+- Status bar shows printer, resin, layer height, exposure, layer count and print time
+- New printers: Elegoo Saturn 4 Ultra 12K and Elegoo Mars 5 Ultra (experimental)
+- Choosing a resin applies its settings for your printer
+- copal-cli: `import`, `export`, `shell` (interactive), `history`, `presets`, `printers`, `resins`, `inspect` (check any .goo file and save a layer as PNG)
+- New document commands: `object.import`, `object.duplicate`, `object.mirror`, `object.arrange`, `object.remove_all`, `print.set`, `supports.set`, `hollow.set`, `layout.set`
+- Console: `export`, `history`, `presets`, `settings print`, `steps` and smarter Tab completion (setting names, printers, resins)
+- Project files keep all print, support, hollow and layout settings (old projects still open)
+
 ## 0.0.2
 
 - Installers! Windows setup (.exe) and portable .exe files

@@ -6,51 +6,57 @@ Inspired by the feel of LycheeSlicer: dark, calm, everything one click away.
 All icons, art and wording are our own.
 
 ```
-┌───────────────────────────────────────────────────────────────────────────────┐
-│ ◆ COPAL   File Edit View   │ Printer: Saturn 4 Ultra 16K ▾ │ Resin: ABS-Like ▾ │
-├──────────┬────────────────────────────────────────────────────────┬───────────┤
-│ PREPARE  │                                                        │ Inspector │
-│ SUPPORTS │                                                        │           │
-│ SLICE    │                    3D viewport                         │ object /  │
-│──────────│                    build plate                         │ tool      │
-│ tools    │                                                        │ settings  │
-│ for the  │                                                        │           │
-│ current  │                                                        │───────────│
-│ step     │                                                        │ Scene     │
-│          │                                                        │ objects   │
-├──────────┴────────────────────────────────────────────────────────┴───────────┤
-│ Console ▸ supports.auto density=medium                 │ ▮▮▮▮ layer slider ▮▮ │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ ◆ COPAL  [1 LAYOUT] 2 PREPARE 3 EXPORT │ Printer ▾ │ Resin ▾ │ Open Save History Preferences │
+├──────────┬──────────────────────────────────────────────┬────────────────────────┤
+│ tools of │ Iso Top Front Side  Overhangs  Handles − +   │ Object Resin Print     │
+│ the step │                                              │ Layout Supports Hollow │ ← wraps
+│          │              3D view (OpenGL)                │────────────────────────│
+│ Import   │              gizmo on the selection          │ settings of the tab    │
+│ Move …   │                     ▲ front                  │ + presets row          │
+│ Objects  │                                              │                        │
+├──────────┴──────────────────────────────────────────────┴────────────────────────┤
+│ copal:project$ console                                                           │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ status: printer · resin · layer height · exposure · layers ≈ time · file         │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Workflow tabs** on the left: Prepare → Supports → Slice & Export. The tool shelf below them
-  changes with the tab.
-- **Inspector** on the right: settings of the selected object or the active tool.
-- **Scene list** under the inspector: objects, supports, rafts, modifiers.
-- **Bottom bar:** console (collapsible) and the layer slider after slicing.
-- **Theme:** dark by default, amber accent from the logo, light theme available.
+- **Steps** in the top bar: Layout → Prepare → Export. The tool shelf on the left changes with the step.
+  - **Layout:** import, add a test cube, move / rotate / scale (gizmo), mirror, drop to plate, reset
+    rotation, duplicate, delete, arrange, undo / redo, object list.
+  - **Prepare:** overhang check (red faces), supports and hollowing (0.2 / 0.3), object list.
+  - **Export:** estimates, Slice & export (background, progress, cancel), layer preview, recent prints.
+- **Settings tabs** on the right: Object (position, rotation, scale, exact size), Resin (layers and
+  exposure, my resin), Print (anti-aliasing, two-stage lift / retract, waits, printer info), Layout
+  (keep on plate, spacing, snapping, gizmo size), Supports, Hollow. Tabs wrap into more rows when the
+  panel is narrow. Every tab except Object has a presets row: load, save, delete.
+- **All panels are resizable:** drag the edge of the tools, settings and console panels.
+- **3D view:** left-drag on empty space orbits, right / middle drag or Shift+drag pans, the wheel zooms
+  to the cursor, double-click frames the plate. Left-drag on a model moves it over the plate; it
+  keeps its height from any camera angle. A small triangle marks the front of the plate.
+- **Gizmos:** move arrows plus a square for moving on the plate, rotate rings, scale handles on the
+  model's own axes plus a centre square for even scaling. Ctrl snaps to the steps in the Layout tab.
+  The − / + buttons over the view (and Preferences) change the handle size.
+- **Windows:** file browser (works without a desktop), print history, preferences.
 
 ## Copal Lite — layout
 
-Like mslicer: one window, plain panels, no animations.
+Like mslicer: one window, plain panels, no animations. Same workspace and features as the full app.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ File  Edit  Supports  Slice  Help                         │
-├────────────────┬─────────────────────────────────────────┤
-│ Printer  ▾     │                                          │
-│ Resin    ▾     │            3D viewport                   │
-│ Objects        │            (simple shading)              │
-│ Transform      │                                          │
-│ Supports       │                                          │
-│ Slice  [Go]    │                                          │
-├────────────────┴─────────────────────────────────────────┤
-│ status · progress · layer slider                          │
+│ File  Edit  Help    Layout  Prepare  Export               │
+├────────────────┬─────────────────────────┬───────────────┤
+│ Printer ▾      │                         │ settings tabs │
+│ Resin   ▾      │       3D view           │               │
+│ tools of step  │                         │               │
+├────────────────┴─────────────────────────┴───────────────┤
+│ console                                                   │
+├──────────────────────────────────────────────────────────┤
+│ status                                                    │
 └──────────────────────────────────────────────────────────┘
 ```
-
-Every feature of the full app is reachable here: through menus, panels or the command palette
-(`Ctrl+P` / `F3`), which runs the same commands as the console.
 
 ## Themes
 
@@ -59,7 +65,7 @@ Every feature of the full app is reachable here: through menus, panels or the co
 | Colors | Neutral greys or white, no brown | Warm browns |
 | Outlines | Simple 1 px orange line, small rounding | Amber crystal material, cut corners, glints |
 | Console | Plain terminal: `copal:project$` prompt, green / blue / white | Amber log with `›` prompt |
-| Light mode | Yes | No (dark only) |
+| Light mode | Yes | Yes (parchment and amber) |
 
 Settings live in `settings.json` in the user config folder and are shared by Copal, Copal Lite and
 copal-cli. Switch in the Settings window (Ctrl+,), with `settings theme=… mode=…` in the console, or
@@ -68,26 +74,30 @@ copal-cli. Switch in the Settings window (Ctrl+,), with `settings theme=… mode
 ## Console
 
 - Prompt like bash: `copal:<project>$`.
-- ↑ / ↓ go through typed commands, Tab completes command names (twice-ambiguous → shows options),
-  `settings ` + Tab completes keys.
-- App commands: `undo`, `redo`, `save [path]`, `open <path>`, `new`, `clear`, `commands`, `settings`, `help`.
+- ↑ / ↓ go through typed commands. Tab completes command names, setting names (`print.set expo` →
+  `exposure_s=`), printers, resins, history ids; when several match it lists them.
+- The console runs the same shell as `copal-cli shell`: `help`, `commands`, `undo`, `redo`, `steps`,
+  `new`, `open`, `save`, `import`, `export`, `info`, `settings [section]`, `printers`, `resins`,
+  `presets …`, `history …`, plus every document command. App-only: `clear`, `preferences`.
 
-## Hotkeys (default, Blender-like)
+## Hotkeys
 
 | Key | Action |
 |---|---|
-| `Tab` | Object mode ↔ Edit mode |
-| `G` / `R` / `S` | Move / Rotate / Scale, then `X` `Y` `Z` to lock axis, type a number, `Enter` |
-| `1` `2` `3` (edit mode) | Vertex / Edge / Face select |
-| `A` / `Alt+A` | Select all / none |
-| `Shift+D` | Duplicate |
+| `G` / `R` / `S` | Move / Rotate / Scale gizmo |
+| Ctrl while dragging | Snap to steps |
+| `Ctrl+D` | Duplicate |
 | `X` / `Delete` | Delete |
-| `E` | Extrude |
-| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / Redo |
-| Numpad `1` `3` `7` | Front / Right / Top view |
-| Middle mouse | Orbit, `Shift` pan, wheel zoom |
-| `F3` / `Ctrl+P` | Command palette |
-| `` ` `` | Toggle console |
-| `Ctrl+,` | Settings |
+| `Esc` | Deselect, or cancel a running export |
+| `F` / double-click | Frame the plate and models |
+| `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Undo / Redo |
+| `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Open / Save / Save as |
+| `Ctrl+I` | Import models |
+| `Ctrl+E` | Slice & export |
+| `Ctrl+,` | Preferences |
+| Left drag | Orbit (empty space) or move a model over the plate |
+| Right / middle drag, Shift+drag | Pan |
+| Wheel | Zoom to the cursor |
 
-The hotkey map is editable. A "Lychee-like" preset can be added later for people coming from there.
+Planned (0.6, Blender-style editing): Tab for Edit mode, axis locks after G / R / S, typed values,
+vertex / edge / face selection, extrude. The hotkey map becomes editable in 0.4.

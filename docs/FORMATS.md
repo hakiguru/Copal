@@ -10,8 +10,20 @@ for inspection and conversion.
 
 | Format | Used by | Notes |
 |---|---|---|
-| `.goo` | Elegoo (Saturn 3/4 Ultra, Mars 4/5 Ultra and newer) | **Our main test printer.** |
-| `.ctb` | Chitu boards: older Elegoo, Phrozen, Uniformation, many others | Several versions; newer ones are encrypted. |
+| `.goo` | Elegoo (Saturn 4 Ultra, Mars 5 Ultra and newer) | **Writer and reader done (0.1).** Header, previews, per-layer motion, RLE with checksum. Checked by reading every layer of files from another slicer and re-encoding them. Image orientation still to be confirmed (see below). |
+| `.ctb` | Chitu boards: older Elegoo, Phrozen, Uniformation, many others | Several versions; newer ones are encrypted. Planned for 0.2. |
+
+### `.goo` notes
+
+- Layer `z` in the file is the top of the layer: `(i + 1) × layer height`.
+- Transition layers step from the bottom exposure to the normal one in equal steps; the last
+  transition layer already uses the normal exposure (29 → 23.48 → 17.96 → … → 1.4 s).
+- Volume in the header is in mm³.
+- Files from Lychee 7.6.6 contain only black and white pixels even with anti-aliasing level 8 in the
+  header. Copal writes real grey edge pixels when anti-aliasing is on.
+- **Open question:** whether the image has to be written mirrored for printers with `mirror_y`.
+  Copal currently flips the image in Y for such printers. `assets/test-models/orientation-F.stl`
+  sliced in both slicers and compared with `copal-cli inspect --layer N --png` settles it.
 
 ### Tier 2 — big database release (0.7)
 

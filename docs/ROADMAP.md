@@ -47,55 +47,58 @@ Black-box study of LycheeSlicer and Chitubox, rules in `docs/RESEARCH.md`.
 
 ---
 
-## 0.1 — Engine MVP (terminal only)
+## 0.1 — It slices ✅ released
 
-- [ ] Mesh import: STL (binary + ASCII), OBJ, 3MF
-- [ ] Transforms: move, rotate, scale, drop to plate, center
-- [ ] CPU slicer: plane intersection → polygons → raster, multithreaded
-- [ ] Anti-aliasing (supersampling), grey levels, image blur
-- [ ] Bottom layers, transition layers, wait times, two-stage lift / retract
-- [ ] `.goo` writer + reader
-- [ ] `.ctb` writer + reader (start with the unencrypted version)
-- [ ] Thumbnails rendered by a tiny software renderer
-- [ ] Preset loader + first presets: Saturn 4 Ultra 16K, ABS-Like Pro 2 (clear, grey)
-- [ ] `copal-cli slice`, `copal-cli info <file>`, PNG layer export
-- [ ] Benchmarks: slicing time and memory on a 16K screen
+- [x] Mesh import: STL (binary + ASCII), OBJ, 3MF
+- [x] Transforms: move, rotate, scale, mirror, duplicate, drop to plate, arrange
+- [x] CPU slicer: plane cut → oriented segments → non-zero winding scanline, multithreaded
+- [x] Anti-aliasing (sub-rows + exact coverage), grey levels
+- [x] Bottom layers, transition layers, wait times, two-stage lift / retract
+- [x] `.goo` writer + reader, checked against files from another slicer that printed well
+- [x] Thumbnails from a tiny software renderer
+- [x] Preset library compiled in from `presets/`, personal presets (resin, exposure, motion,
+      supports, hollow, layout)
+- [x] Print history with project snapshots, ratings and notes
+- [x] OpenGL 3D view (GL 2.1 / GLES 2 / GL 3 core), perspective camera, picking
+- [x] Move / rotate / scale gizmos with adjustable size, drag models over the plate
+- [x] Layout / Prepare / Export steps, settings tabs, resizable panels, layer preview
+- [x] Background export with progress and cancel
+- [x] `copal-shell`: one set of commands for the console and `copal-cli shell`
+- [x] CLI: import, export, history, presets, printers, resins, inspect
+- [ ] **Confirm image orientation** of `.goo` files against Lychee with the F test model,
+      then a test print on the Saturn 4 Ultra 16K
+- [ ] Benchmarks in CI
 
-**Done when:** a model sliced by `copal-cli` prints correctly on the Saturn 4 Ultra 16K.
+**Done when:** a model sliced by Copal prints correctly on the Saturn 4 Ultra 16K.
 
 ---
 
-## 0.2 — Copal Lite + calibration
+## 0.2 — Prepare: orientation, hollowing, checks
 
-- [ ] `copal-ui-common`: theme, 3D viewport, build plate grid
-- [ ] Lite renderer on `glow`, tested on OpenGL 2.1 and llvmpipe
-- [ ] Load models, select, move/rotate/scale with gizmos and number fields
-- [ ] Printer and resin pickers
-- [ ] Slice with progress and cancel; layer preview slider
-- [ ] Export dialog
-- [ ] **Exposure test generator + "pick the best chip" + save personal resin preset**
-      (`docs/CALIBRATION.md`), in Lite and CLI
-- [ ] English + Russian UI
-- [ ] Packaging: AppImage, `.deb`, `.rpm`, AUR, `.tar.gz` for `copal-lite` and `copal-cli`
+- [ ] Auto orientation: score rotations by overhang area, islands and peel area
+- [ ] Lay flat on a picked face
+- [ ] Island detection from the layers, shown in the 3D view and the layer preview
+- [ ] Hollowing 3D (voxel distance field + surface nets), wall thickness, precision
+- [ ] Drain holes: click to place, size and depth, real holes in the slices
+- [ ] Resin trap / suction cup check for hollow models
+- [ ] Exposure test generator + "pick the best chip" + save personal resin
+      (`docs/CALIBRATION.md`), in both apps and the CLI
+- [ ] `.ctb` writer + reader (unencrypted first)
+- [ ] English + Russian UI (`fluent`)
 - [ ] Guide: running Lite from a TTY with `cage`
-
-**Done when:** a user on a weak laptop with integrated graphics calibrates a resin, slices and exports.
 
 ---
 
 ## 0.3 — Supports
 
-- [ ] Research spike results written up (goals from the Lychee study + papers)
-- [ ] Overhang and island detection (mesh + layer based), shown in the viewport
-- [ ] Auto supports: light / medium / heavy, editable parameters
-- [ ] Support geometry: tips, shafts, joints, bases, branches
-- [ ] Parenting and bracing between supports
-- [ ] Support types: inline, grid, projection
-- [ ] Support painting: areas that need supports / must stay clean
-- [ ] Proximity detection (supports too close to the model)
-- [ ] Rafts: flat, chamfered, skate-style and more
-- [ ] Manual editing: add, delete, move tip, resize, select many
-- [ ] Suction cup / resin trap detection
+- [ ] Auto supports: light / medium / heavy, settings from the Supports tab
+- [ ] The tilted XYZ cube must hold on the first try (regression test)
+- [ ] Support geometry: tips, shafts, bases, braces, raft
+- [ ] Auto bracing and parenting
+- [ ] Manual supports: click to add one, it braces itself to its neighbours when the option is on
+- [ ] Select, edit and delete each support; selection filters (tips, bases, braces)
+- [ ] Supports move with their model when it is dragged on the plate
+- [ ] Island supports, proximity check
 - [ ] STL / OBJ export with supports
 - [ ] CLI: `supports.*` commands
 
@@ -104,29 +107,22 @@ and match or beat the recorded Lychee results.
 
 ---
 
-## 0.4 — Copal, the full app
+## 0.4 — Polish of the full app
 
-- [ ] Layout from `docs/UI.md`: top bar, workflow tabs, tool shelf, inspector, layer timeline
-- [ ] `wgpu` renderer: resin-like material, SSAO, outlines, selection highlight
-- [ ] Undo/redo history panel
-- [ ] Built-in console panel (same command language as the CLI), macro recording → `.copalscript`
-- [ ] Hotkey map (Blender-like by default, editable)
+- [ ] Nicer material (resin look), outlines, shadows on the plate
+- [ ] Undo/redo history panel, macro recording → `.copalscript`
+- [ ] Editable hotkey map
 - [ ] Autosave and local backups
 - [ ] Reload model when its file changes on disk
-- [ ] Export scene, picture view (nice render to share)
+- [ ] Picture view (nice render to share)
 - [ ] Full calibration wizard UI
-- [ ] Windows: `.msi` installer and portable zip
-- [ ] Full app packages for every Linux format, Flatpak manifests for both editions
-
-**Done when:** import → supports → slice → export is comfortable in the full app on Windows and Linux.
 
 ---
 
 ## 0.5 — Preparation tools
 
 - [ ] Mesh repair: holes, flipped normals, non-manifold edges, self-intersections
-- [ ] Auto orientation (fewer islands, less support, smaller layer area)
-- [ ] Auto arrange, fill plate with copies
+- [ ] Fill the plate with copies
 - [ ] Multi-plate projects
 - [ ] "Magic button" (one model) and "batch button" (many models): orient → support → arrange
 - [ ] Hollowing 2D, 3D and voxel; hollow blockers (manual + automatic); infill / lattice
