@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "copal"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "copal-core",
  "copal-ui-common",
@@ -396,7 +396,7 @@ dependencies = [
 
 [[package]]
 name = "copal-cli"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "clap",
  "copal-core",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "copal-core"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "copal-mesh",
  "glam",
@@ -419,11 +419,11 @@ dependencies = [
 
 [[package]]
 name = "copal-formats"
-version = "0.0.0"
+version = "0.0.1"
 
 [[package]]
 name = "copal-lite"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "copal-core",
  "copal-ui-common",
@@ -433,7 +433,7 @@ dependencies = [
 
 [[package]]
 name = "copal-mesh"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "glam",
  "thiserror 2.0.21",
@@ -441,23 +441,23 @@ dependencies = [
 
 [[package]]
 name = "copal-net"
-version = "0.0.0"
+version = "0.0.1"
 
 [[package]]
 name = "copal-presets"
-version = "0.0.0"
+version = "0.0.1"
 
 [[package]]
 name = "copal-slice"
-version = "0.0.0"
+version = "0.0.1"
 
 [[package]]
 name = "copal-supports"
-version = "0.0.0"
+version = "0.0.1"
 
 [[package]]
 name = "copal-ui-common"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "copal-core",
  "egui",

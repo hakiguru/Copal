@@ -13,6 +13,7 @@
 | `copal-cli run <file> <command> [key=value …]` | Run one command and save |
 | `copal-cli script <file> <script.copalscript>` | Run a script (one command per line, `#` comments) |
 | `copal-cli commands` | List every command with its arguments |
+| `copal-cli settings [theme=default\|art] [mode=dark\|light]` | Show or change the app look |
 
 Add `--json` to any of them for machine-readable output, `--dry-run` to `run` and `script` to test
 without saving.
@@ -20,7 +21,7 @@ without saving.
 Commands so far: `object.add_cube`, `object.move`, `object.rotate`, `object.scale`, `object.drop`,
 `object.rename`, `object.remove`, `object.set_transform`, `project.rename`, `project.set_printer`,
 `project.set_resin`. The console inside Copal and Copal Lite understands the same commands, plus
-`undo`, `redo`, `save`, `open`, `new`, `help`.
+`undo`, `redo`, `save`, `open`, `new`, `settings`, `help`, with ↑ / ↓ history and Tab completion.
 
 ## Coming next
 

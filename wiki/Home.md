@@ -10,7 +10,7 @@
 ---
 
 > [!NOTE]
-> **Copal 0.0 preview is out** — the foundation: project files, undo/redo, the terminal tool and
+> **Copal 0.0.1 preview is out** — the foundation: project files, undo/redo, the terminal tool and
 > both apps. It can't slice yet. Most pages here describe how things **will** work; each page says
 > which version brings it.
 

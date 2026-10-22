@@ -52,6 +52,26 @@ Like mslicer: one window, plain panels, no animations.
 Every feature of the full app is reachable here: through menus, panels or the command palette
 (`Ctrl+P` / `F3`), which runs the same commands as the console.
 
+## Themes
+
+| | Default (dark / light) | Art |
+|---|---|---|
+| Colors | Neutral greys or white, no brown | Warm browns |
+| Outlines | Simple 1 px orange line, small rounding | Amber crystal material, cut corners, glints |
+| Console | Plain terminal: `copal:project$` prompt, green / blue / white | Amber log with `›` prompt |
+| Light mode | Yes | No (dark only) |
+
+Settings live in `settings.json` in the user config folder and are shared by Copal, Copal Lite and
+copal-cli. Switch in the Settings window (Ctrl+,), with `settings theme=… mode=…` in the console, or
+`copal-cli settings …`.
+
+## Console
+
+- Prompt like bash: `copal:<project>$`.
+- ↑ / ↓ go through typed commands, Tab completes command names (twice-ambiguous → shows options),
+  `settings ` + Tab completes keys.
+- App commands: `undo`, `redo`, `save [path]`, `open <path>`, `new`, `clear`, `commands`, `settings`, `help`.
+
 ## Hotkeys (default, Blender-like)
 
 | Key | Action |
@@ -68,5 +88,6 @@ Every feature of the full app is reachable here: through menus, panels or the co
 | Middle mouse | Orbit, `Shift` pan, wheel zoom |
 | `F3` / `Ctrl+P` | Command palette |
 | `` ` `` | Toggle console |
+| `Ctrl+,` | Settings |
 
 The hotkey map is editable. A "Lychee-like" preset can be added later for people coming from there.

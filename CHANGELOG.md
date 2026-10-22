@@ -3,6 +3,16 @@
 All notable changes to Copal. Newest first.
 Each version here is also published as a GitHub Release.
 
+## 0.0.1
+
+- New default theme: calm dark or light colors with simple orange outlines
+- Light mode in white and grey tones
+- The amber crystal look is now the Art theme
+- Settings window (Settings button, Ctrl+,) to switch theme and dark / light mode; the choice is saved
+- `settings` command in the console and in copal-cli, e.g. `settings theme=art mode=light`
+- The console looks and works like a terminal: `copal:project$` prompt, ↑ / ↓ history, Tab completion
+- Releases are now regular releases, so the newest one shows up as "Latest" on GitHub
+
 ## 0.0.0
 
 The foundation. Copal can't slice yet, but the engine, the apps and the release pipeline are in place.

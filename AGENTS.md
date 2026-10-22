@@ -83,7 +83,7 @@ rendering (Mesa llvmpipe) as a fallback, and on a system without a desktop
 - The changelog is plain English, short bullets, ready to paste, no "see README" pointers.
   Same text goes to `CHANGELOG.md`.
 - CI attaches all packages to the release (see `docs/ARCHITECTURE.md` → Packaging).
-- Versions before 1.0 are marked as pre-release.
+- Releases are normal (not pre-release), so GitHub shows the newest one as "Latest".
 
 ## Test hardware
 
@@ -126,5 +126,6 @@ tools/ui-shot.sh        screenshot an app in a virtual display (Xvfb) to check t
 - Before a commit: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo test --workspace`. CI runs the same plus `cargo deny`.
 - UI changes: check them with `tools/ui-shot.sh` (add `--interact` to click and type).
-- Amber is an accent, not a background. Borders use the crystal material from
-  `copal-ui-common::crystal`; colors come from `palette.rs` (same as the logo).
+- Two themes: **Default** (neutral dark/light, simple orange outlines) and **Art** (amber crystal
+  borders, dark only). Widgets never hard-code colors: take them from `Look::pal` (`palette.rs`)
+  and draw outlines with `Look::outline`, which picks the right style. Default is what users see first.

@@ -33,8 +33,19 @@ on every machine, from a gaming PC to an old laptop.
 The logo is a crystal of it.
 
 <p align="center">
-  <img src="assets/screenshots/copal-0.0.png" alt="Copal 0.0 preview: build plate, inspector and console">
+  <img src="assets/screenshots/copal-dark.png" alt="Copal with the default dark theme">
 </p>
+
+<table>
+  <tr>
+    <td><img src="assets/screenshots/copal-light.png" alt="Default light theme"></td>
+    <td><img src="assets/screenshots/copal-art.png" alt="Art theme with amber crystal borders"></td>
+  </tr>
+  <tr>
+    <td align="center">Light mode</td>
+    <td align="center">Art theme</td>
+  </tr>
+</table>
 
 ## Three ways to use it
 
@@ -102,6 +113,14 @@ The user guide lives in the [wiki](https://github.com/hakiguru/Copal/wiki).
 - [ ] **0.7** Large printer and resin database, all major file formats
 - [ ] **0.8** GPU slicing, sending to printer over Wi-Fi, advanced calibration
 
+## Themes
+
+- **Default** — calm dark or light colors with simple orange outlines. Easy on the eyes for long sessions.
+- **Art** — warm amber colors, crystal borders and glints, in the style of the logo.
+
+Switch in **Settings** (Ctrl+,), in the console with `settings theme=art`, or from the terminal with
+`copal-cli settings theme=art mode=light`.
+
 ## Calibrate your own resin
 
 Resin settings change with the color, the batch and even the room temperature.
@@ -132,6 +151,7 @@ copal-cli run part.copal object.add_cube size=20
 copal-cli run part.copal object.rotate id=1 x=45
 copal-cli run part.copal object.drop id=1
 copal-cli info part.copal
+copal-cli settings mode=light         # app look: theme=default|art, mode=dark|light
 copal part.copal                     # open it in the app
 ```
 

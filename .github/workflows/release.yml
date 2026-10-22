@@ -111,10 +111,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FLAGS=""
-          case "$VERSION" in 0.*) FLAGS="--prerelease" ;; esac
           gh release create "v$VERSION" dist/* \
             --target "$GITHUB_SHA" \
             --title "Copal $VERSION" \
             --notes-file notes.md \
-            $FLAGS
+            --latest
