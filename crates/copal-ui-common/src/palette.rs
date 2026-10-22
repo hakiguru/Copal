@@ -95,7 +95,8 @@ const ORANGE: Color32 = amber::MID;
 impl Palette {
     pub fn for_settings(s: &Settings) -> Self {
         match (s.theme, s.effective_mode()) {
-            (ThemeStyle::Art, _) => Self::ART,
+            (ThemeStyle::Art, ColorMode::Dark) => Self::ART,
+            (ThemeStyle::Art, ColorMode::Light) => Self::ART_LIGHT,
             (ThemeStyle::Default, ColorMode::Dark) => Self::DARK,
             (ThemeStyle::Default, ColorMode::Light) => Self::LIGHT,
         }
@@ -165,6 +166,39 @@ impl Palette {
         term_user: rgb(38, 130, 30),
         term_path: rgb(30, 90, 180),
         term_error: rgb(200, 40, 30),
+    };
+
+    /// Warm amber on parchment, with the same crystal borders.
+    pub const ART_LIGHT: Self = Self {
+        dark: false,
+        void: rgb(236, 228, 216),
+        base: rgb(244, 237, 227),
+        panel: rgb(250, 245, 238),
+        raised: rgb(255, 251, 245),
+        raised_hover: rgb(250, 238, 222),
+        pressed: rgb(238, 226, 210),
+        line: rgb(222, 206, 186),
+        text: rgb(46, 33, 23),
+        text_weak: rgb(112, 90, 70),
+        text_faint: rgb(160, 139, 118),
+        accent: amber::SHADOW,
+        accent_hover: amber::MID,
+        accent_text: rgb(168, 66, 4),
+        primary_fill: rgb(255, 234, 204),
+        primary_fill_hover: rgb(255, 222, 180),
+        selection: Color32::from_rgba_premultiplied(120, 60, 8, 60),
+        error: rgb(190, 42, 28),
+        plate: rgb(246, 238, 226),
+        plate_edge: amber::SHADOW,
+        grid: rgb(222, 207, 188),
+        volume: Color32::from_rgba_premultiplied(90, 64, 40, 70),
+        object: rgb(150, 138, 126),
+        object_selected: amber::MID,
+        term_bg: rgb(250, 245, 238),
+        term_fg: rgb(88, 66, 50),
+        term_user: amber::DEEP,
+        term_path: amber::SHADOW,
+        term_error: rgb(190, 42, 28),
     };
 
     /// Warm amber with crystal borders.

@@ -1,13 +1,16 @@
 //! Copal Lite — the same features in a simple, fast interface for weak computers.
 //!
-//! Usage: `copal-lite [project.copal]`
+//! Usage: `copal-lite [project.copal | model.stl …]`
 
 // No console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use copal_core::{Session, Settings};
+use std::path::PathBuf;
+
+use copal_core::Settings;
+use copal_ui_common::files::Purpose;
 use copal_ui_common::look::{Edge, State};
-use copal_ui_common::workspace::{LineKind, Step};
+use copal_ui_common::workspace::Step;
 use copal_ui_common::{Edition, Look, Workspace, widgets};
 use eframe::egui::{self, CentralPanel, Frame, Margin, Panel, ScrollArea, Ui, ViewportCommand};
 
@@ -25,6 +28,8 @@ impl eframe::App for LiteApp {
         let look = &self.look;
         let p = look.pal;
         let ws = &mut self.ws;
+        ws.poll_export(ui.ctx());
+        ws.dropped_files(ui);
         ws.hotkeys(ui);
         let title = ws.title().replace("— Copal", "— Copal Lite");
         if title != self.last_title {
@@ -45,12 +50,30 @@ impl eframe::App for LiteApp {
                         if ui.button("New").clicked() {
                             ws.run("new");
                         }
+                        if ui.button("Open…   Ctrl+O").clicked() {
+                            ws.open_dialog(Purpose::OpenProject);
+                        }
                         if ui.button("Save   Ctrl+S").clicked() {
-                            ws.run("save");
+                            if ws.session().path().is_some() {
+                                ws.run("save");
+                            } else {
+                                ws.open_dialog(Purpose::SaveProject);
+                            }
                         }
-                        if ui.button("Settings…   Ctrl+,").clicked() {
-                            ws.show_settings = true;
+                        if ui.button("Save as…   Ctrl+Shift+S").clicked() {
+                            ws.open_dialog(Purpose::SaveProject);
                         }
+                        ui.separator();
+                        if ui.button("Import models…   Ctrl+I").clicked() {
+                            ws.open_dialog(Purpose::ImportModel);
+                        }
+                        if ui.button("Slice & export…   Ctrl+E").clicked() {
+                            ws.open_dialog(Purpose::Export);
+                        }
+                        if ui.button("Print history").clicked() {
+                            ws.show_history = true;
+                        }
+                        ui.separator();
                         if ui.button("Quit").clicked() {
                             ui.ctx().send_viewport_cmd(ViewportCommand::Close);
                         }
@@ -62,12 +85,25 @@ impl eframe::App for LiteApp {
                         if ui.button("Redo   Ctrl+Shift+Z").clicked() {
                             ws.redo();
                         }
+                        ui.separator();
+                        if ui.button("Arrange all").clicked() {
+                            ws.run("object.arrange");
+                        }
+                        if ui.button("Preferences…   Ctrl+,").clicked() {
+                            ws.show_settings = true;
+                        }
                     });
                     ui.menu_button("Help", |ui| {
                         if ui.button("Console commands").clicked() {
                             ws.run("help");
                         }
                     });
+                    ui.add_space(16.0);
+                    for (step, name) in Step::ALL {
+                        if ui.selectable_label(ws.step == step, name).clicked() {
+                            ws.step = step;
+                        }
+                    }
                 });
             });
 
@@ -77,13 +113,13 @@ impl eframe::App for LiteApp {
                     .fill(p.base)
                     .inner_margin(Margin::symmetric(8, 3)),
             )
-            .show(ui, |ui| {
-                ui.horizontal(|ui| ws.status_line(ui, look));
-            });
+            .show(ui, |ui| ui.horizontal(|ui| ws.status_line(ui, look)));
 
         let console_fill = if look.art() { p.panel } else { p.term_bg };
         let console = Panel::bottom("console")
-            .exact_size(120.0)
+            .resizable(true)
+            .default_size(120.0)
+            .min_size(40.0)
             .frame(
                 Frame::new()
                     .fill(console_fill)
@@ -92,51 +128,60 @@ impl eframe::App for LiteApp {
             .show(ui, |ui| ws.console_panel(ui, look));
 
         let side = Panel::left("side")
-            .exact_size(280.0)
+            .resizable(true)
+            .default_size(260.0)
+            .min_size(190.0)
             .frame(Frame::new().fill(p.panel).inner_margin(Margin::same(10)))
             .show(ui, |ui| {
-                ScrollArea::vertical().show(ui, |ui| {
-                    widgets::wordmark(ui, look, 32.0);
-                    ui.add_space(4.0);
-                    ws.printer_resin_pickers(ui, look);
-                    widgets::section(ui, look, "Objects");
-                    ws.scene_list(ui, look);
-                    widgets::section(ui, look, "Transform");
-                    ws.inspector(ui, look);
-                    let current = ws.step;
-                    for step in [Step::Prepare, Step::Supports, Step::Slice] {
-                        ws.step = step;
+                ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        widgets::wordmark(ui, look, 28.0);
+                        ui.add_space(4.0);
+                        ui.horizontal_wrapped(|ui| ws.printer_resin_pickers(ui, look));
                         ws.tool_shelf(ui, look);
-                    }
-                    ws.step = current;
-                });
+                    });
             });
+
+        let right = Panel::right("settings")
+            .resizable(true)
+            .default_size(300.0)
+            .min_size(220.0)
+            .frame(Frame::new().fill(p.panel).inner_margin(Margin::same(10)))
+            .show(ui, |ui| ws.settings_panel(ui, look));
 
         CentralPanel::default()
             .frame(Frame::new().fill(p.void))
             .show(ui, |ui| ws.viewport(ui, look));
 
         let painter = ui.painter();
-        for rect in [side.response.rect, console.response.rect] {
+        for rect in [
+            side.response.rect,
+            right.response.rect,
+            console.response.rect,
+        ] {
             look.outline(painter, rect.shrink(1.0), Edge::Panel, State::Idle);
         }
 
+        ws.dialogs(ui.ctx(), look);
+        ws.history_window(ui.ctx(), look);
         ws.settings_window(ui.ctx(), look);
     }
 }
 
 fn main() -> eframe::Result {
-    let file = std::env::args().nth(1);
+    let files: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Copal Lite")
             .with_app_id("io.github.hakiguru.Copal.Lite")
             .with_inner_size([1180.0, 760.0])
             .with_min_inner_size([800.0, 520.0])
-            .with_icon(copal_ui_common::look::icon()),
-        // Lite: no multisampling and no depth buffer, to stay light on old GPUs.
+            .with_icon(copal_ui_common::look::icon())
+            .with_drag_and_drop(true),
+        // Lite: no multisampling, to stay light on old GPUs. The depth buffer is needed for 3D.
         multisampling: 0,
-        depth_buffer: 0,
+        depth_buffer: 24,
         ..Default::default()
     };
     eframe::run_native(
@@ -146,14 +191,15 @@ fn main() -> eframe::Result {
             let settings = Settings::load_or_default();
             let look = Look::new(&cc.egui_ctx, Edition::Lite, &settings);
             let mut ws = Workspace::new(settings);
-            if let Some(path) = file {
-                match Session::open(path.as_ref()) {
-                    Ok(s) => {
-                        ws.session = s;
-                        ws.log(LineKind::Info, format!("Opened {path}"));
-                    }
-                    Err(e) => ws.log(LineKind::Error, format!("{path}: {e}")),
-                }
+            let (projects, models): (Vec<_>, Vec<_>) = files.into_iter().partition(|p| {
+                p.extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("copal"))
+            });
+            if let Some(p) = projects.first() {
+                ws.open(p);
+            }
+            if !models.is_empty() {
+                ws.import(&models);
             }
             Ok(Box::new(LiteApp {
                 look,

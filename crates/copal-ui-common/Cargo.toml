@@ -11,6 +11,12 @@ publish.workspace = true
 
 [dependencies]
 copal-core.workspace = true
+copal-formats.workspace = true
+copal-mesh.workspace = true
+copal-shell.workspace = true
+copal-slice.workspace = true
+egui_glow.workspace = true
+glow.workspace = true
 egui.workspace = true
 glam.workspace = true
 image.workspace = true
