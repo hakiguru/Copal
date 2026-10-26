@@ -126,6 +126,7 @@ crates/copal-presets    printer/resin database (embedded from presets/), setting
                         personal presets
 crates/copal-slice      layer rasterizer (non-zero winding, anti-aliasing, streaming rows)
 crates/copal-formats    .goo writer/reader, thumbnails, export of a project
+crates/copal-supports   support generator (islands, overhangs, braces, raft), hollowing, drain holes
 crates/copal-shell      shell commands shared by the GUI consoles and copal-cli shell
 crates/copal-ui-common  theme, crystal borders, widgets, OpenGL 3D view, gizmos, panels
 crates/copal-*          other engine crates (stubs until their milestone)
@@ -140,8 +141,13 @@ tools/ui-shot.sh        screenshot an app in a virtual display (Xvfb) to check t
 - UI changes: check them with `tools/ui-shot.sh` (add `--interact` to click and type).
 - `unsafe` is denied everywhere except the OpenGL renderer (`copal-ui-common/src/render.rs`).
 - Slicing crates are optimized in debug builds too (see `[profile.dev.package…]` in `Cargo.toml`).
-- The `.goo` image orientation for printers with `mirror_y` is not confirmed yet: don't call the
-  format stable before the F test model (`assets/test-models/`) matches another slicer's output.
+- The `.goo` image orientation is confirmed against Lychee with the F test model (0.2). The format
+  is called *stable* only after a real print on the Saturn 4 Ultra 16K.
+- Supports, hollowing and drain holes live in `copal-supports` (engine) and `copal-core/src/prepare.rs`
+  (commands); the Prepare tools panel is `copal-ui-common/src/prep.rs`. Supports are stored relative
+  to the object position; rotate / scale / mirror clear them, move keeps them.
+- Personal resins: any `.toml` in `<config>/presets/resins/`, reloaded while the apps run
+  (`copal-ui-common/src/resins.rs`). Lychee `.lyr` files are encrypted: don't try to read them.
 - Two themes, each dark or light: **Default** (neutral, simple orange outlines) and **Art** (amber
   crystal borders). Widgets never hard-code colors: take them from `Look::pal` (`palette.rs`)
   and draw outlines with `Look::outline`, which picks the right style. Default is what users see first.

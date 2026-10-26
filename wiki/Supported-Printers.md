@@ -13,7 +13,7 @@
 | Elegoo | Mars 5 Ultra | 8520 × 4320 px, 153.36 × 77.76 mm | `.goo` | 🧪 |
 
 Printer data comes from manufacturer specs; every preset file names its source.
-More printers arrive with more file formats: `.ctb` in 0.2, the big database in 0.7.
+More printers arrive with more file formats: `.ctb` in 0.3, the big database in 0.7.
 
 ## Your printer is missing?
 See [[Add a printer or resin|Adding-Printers-and-Resins]]. One test print from you can move a

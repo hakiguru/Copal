@@ -32,6 +32,15 @@ All icons, art and wording are our own.
   (keep on plate, spacing, snapping, gizmo size), Supports, Hollow. Tabs wrap into more rows when the
   panel is narrow. Every tab except Object has a presets row: load, save, delete.
 - **All panels are resizable:** drag the edge of the tools, settings and console panels.
+- **Panels fold away** like IntelliJ tool windows: the — button in a header hides a panel, a folded
+  side panel becomes a 26 px stripe with its name (click to open), the status bar has a Console
+  switch, Alt+1 / Alt+2 / Alt+3 toggle tools / settings / console. The state is saved in the app
+  settings (`panels`). Lite has the same switches in its View menu.
+- **Prepare tools:** support presets (Light / Medium / Heavy), mode (Auto / Islands only), Auto
+  supports, the View / Select / Add tools, manual bracing checkbox, size and delete for selected
+  supports, Check islands, Remove supports, Hollow / Make solid with wall thickness, Add holes with
+  diameter and depth. In Prepare the selected model gets only a light tint, so its supports stay
+  visible.
 - **3D view:** left-drag on empty space orbits, right / middle drag or Shift+drag pans, the wheel zooms
   to the cursor, double-click frames the plate. Left-drag on a model moves it over the plate; it
   keeps its height from any camera angle. A small triangle marks the front of the plate.
@@ -88,7 +97,9 @@ copal-cli. Switch in the Settings window (Ctrl+,), with `settings theme=… mode
 | Ctrl while dragging | Snap to steps |
 | `Ctrl+D` | Duplicate |
 | `X` / `Delete` | Delete |
-| `Esc` | Deselect, or cancel a running export |
+| `Esc` | Deselect, leave the Select / Add tool, or cancel a running export |
+| `Delete` (Prepare) | Delete the selected supports |
+| `Alt+1` / `Alt+2` / `Alt+3` | Show or hide tools / settings / console |
 | `F` / double-click | Frame the plate and models |
 | `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Undo / Redo |
 | `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Open / Save / Save as |

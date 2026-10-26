@@ -18,7 +18,8 @@ use crate::document::{Document, ObjectId, ProjectSettings, SceneObject, Transfor
 ///
 /// - 1: name, printer, resin, objects.
 /// - 2: adds `settings` (print, supports, hollow, layout). Version 1 files get the defaults.
-pub const FORMAT_VERSION: u32 = 2;
+/// - 3: objects may have `supports`, `holes` and a `cavity` mesh (`meshes/<id>.cavity.bin`).
+pub const FORMAT_VERSION: u32 = 3;
 const FORMAT_NAME: &str = "copal-project";
 const PROJECT_JSON: &str = "project.json";
 
@@ -63,10 +64,31 @@ struct ObjectJson {
     name: String,
     transform: Transform,
     mesh: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    supports: Option<copal_supports::SupportSet>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    holes: Vec<copal_supports::DrainHole>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cavity: Option<String>,
 }
 
 fn mesh_path(id: ObjectId) -> String {
     format!("meshes/{id}.bin")
+}
+
+fn cavity_path(id: ObjectId) -> String {
+    format!("meshes/{id}.cavity.bin")
+}
+
+fn read_mesh<R: Read + Seek>(zip: &mut ZipArchive<R>, path: &str) -> Result<Mesh, ProjectError> {
+    let mut bytes = Vec::new();
+    zip.by_name(path)
+        .map_err(|_| ProjectError::Invalid(format!("mesh `{path}` is missing")))?
+        .read_to_end(&mut bytes)?;
+    Mesh::from_bytes(&bytes).map_err(|source| ProjectError::Mesh {
+        path: path.to_string(),
+        source,
+    })
 }
 
 /// Writes the project to any seekable writer.
@@ -90,6 +112,9 @@ pub fn write_to<W: Write + Seek>(doc: &Document, writer: W) -> Result<(), Projec
                 name: o.name.clone(),
                 transform: o.transform,
                 mesh: mesh_path(o.id),
+                supports: o.prep.supports.as_deref().cloned(),
+                holes: o.prep.holes.clone(),
+                cavity: o.prep.cavity.as_ref().map(|_| cavity_path(o.id)),
             })
             .collect(),
     };
@@ -98,6 +123,10 @@ pub fn write_to<W: Write + Seek>(doc: &Document, writer: W) -> Result<(), Projec
     for o in doc.objects() {
         zip.start_file(mesh_path(o.id), options)?;
         zip.write_all(&o.mesh.to_bytes())?;
+        if let Some(c) = &o.prep.cavity {
+            zip.start_file(cavity_path(o.id), options)?;
+            zip.write_all(&c.to_bytes())?;
+        }
     }
     zip.finish()?;
     Ok(())
@@ -136,20 +165,16 @@ pub fn read_from<R: Read + Seek>(reader: R) -> Result<Document, ProjectError> {
                 o.id
             )));
         }
-        let mut bytes = Vec::new();
-        zip.by_name(&o.mesh)
-            .map_err(|_| ProjectError::Invalid(format!("mesh `{}` is missing", o.mesh)))?
-            .read_to_end(&mut bytes)?;
-        let mesh = Mesh::from_bytes(&bytes).map_err(|source| ProjectError::Mesh {
-            path: o.mesh.clone(),
-            source,
-        })?;
-        objects.push(SceneObject {
-            id: o.id,
-            name: o.name,
-            transform: o.transform,
-            mesh: Arc::new(mesh),
-        });
+        let mesh = read_mesh(&mut zip, &o.mesh)?;
+        let cavity = match &o.cavity {
+            Some(p) => Some(Arc::new(read_mesh(&mut zip, p)?)),
+            None => None,
+        };
+        let mut obj = SceneObject::new(o.id, o.name, o.transform, Arc::new(mesh));
+        obj.prep.supports = o.supports.map(Arc::new);
+        obj.prep.holes = o.holes;
+        obj.prep.cavity = cavity;
+        objects.push(obj);
     }
 
     Ok(Document {

@@ -126,6 +126,8 @@ pub struct Workspace {
     pub(crate) history_note: std::collections::HashMap<String, String>,
     pub(crate) framed: bool,
     pub(crate) preset_name: String,
+    pub(crate) resins: crate::resins::ResinState,
+    pub(crate) prep: crate::prep::PrepState,
 }
 
 impl Default for Workspace {
@@ -175,6 +177,8 @@ impl Workspace {
             history_note: Default::default(),
             framed: false,
             preset_name: String::new(),
+            resins: Default::default(),
+            prep: Default::default(),
         };
         ws.log(
             LineKind::Info,
@@ -212,6 +216,9 @@ impl Workspace {
         self.drag = None;
         self.framed = false;
         self.preview = LayerPreview::default();
+        self.prep.selection.clear();
+        self.prep.islands = None;
+        self.prep.cache.clear();
     }
 
     /// True once after the settings changed; the app then re-applies its look.
@@ -327,6 +334,15 @@ impl Workspace {
         }
     }
 
+    /// Opens or folds the side windows (saved with the app settings).
+    pub fn set_panels(&mut self, panels: copal_core::Panels) {
+        if panels != self.settings.panels {
+            let mut s = self.settings.clone();
+            s.panels = panels;
+            self.set_settings(s);
+        }
+    }
+
     pub fn undo(&mut self) {
         self.run("undo");
     }
@@ -387,6 +403,7 @@ impl Workspace {
             Purpose::OpenProject => self.open(&first),
             Purpose::SaveProject => self.run(&format!("save {}", quote(&first.to_string_lossy()))),
             Purpose::Export => self.start_export(first),
+            Purpose::ImportResin => self.import_resins(&paths),
         }
     }
 
@@ -400,7 +417,8 @@ impl Workspace {
         self.run(&line);
     }
 
-    /// Files dropped on the window: models are imported, a project is opened.
+    /// Files dropped on the window: models are imported, a project is opened, resin presets
+    /// (`.toml`) go to the personal resin folder.
     pub fn dropped_files(&mut self, ui: &Ui) {
         let dropped: Vec<PathBuf> = ui.input(|i| {
             i.raw
@@ -412,10 +430,15 @@ impl Workspace {
         if dropped.is_empty() {
             return;
         }
-        let (projects, models): (Vec<PathBuf>, Vec<PathBuf>) = dropped.into_iter().partition(|p| {
-            p.extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("copal"))
-        });
+        let has =
+            |p: &PathBuf, ext: &str| p.extension().is_some_and(|e| e.eq_ignore_ascii_case(ext));
+        let (presets, dropped): (Vec<PathBuf>, Vec<PathBuf>) =
+            dropped.into_iter().partition(|p| has(p, "toml"));
+        if !presets.is_empty() {
+            self.import_resins(&presets);
+        }
+        let (projects, models): (Vec<PathBuf>, Vec<PathBuf>) =
+            dropped.into_iter().partition(|p| has(p, "copal"));
         if let Some(p) = projects.first() {
             self.open(p);
         }
@@ -519,6 +542,19 @@ impl Workspace {
         let export = shortcut(Modifiers::COMMAND, Key::E);
         let dup = shortcut(Modifiers::COMMAND, Key::D);
         let prefs = shortcut(Modifiers::COMMAND, Key::Comma);
+        let alt =
+            |k| ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::ALT, k)));
+        let mut panels = self.settings.panels;
+        if alt(Key::Num1) {
+            panels.tools = !panels.tools;
+        }
+        if alt(Key::Num2) {
+            panels.settings = !panels.settings;
+        }
+        if alt(Key::Num3) || alt(Key::F12) {
+            panels.console = !panels.console;
+        }
+        self.set_panels(panels);
         let typing = ctx.memory(|m| m.focused().is_some()) || self.dialog.is_some();
         let key = |k| !typing && ctx.input(|i| i.key_pressed(k) && i.modifiers.is_none());
         if redo {
@@ -543,11 +579,16 @@ impl Workspace {
         if prefs {
             self.show_settings = !self.show_settings;
         }
-        if let Some(id) = self.selected {
+        let delete = key(Key::Delete) || key(Key::X);
+        if self.step == Step::Prepare && !self.prep.selection.is_empty() {
+            if delete {
+                self.delete_selected_supports();
+            }
+        } else if let Some(id) = self.selected {
             if dup && !typing {
                 self.run(&format!("object.duplicate id={id}"));
             }
-            if key(Key::Delete) || key(Key::X) {
+            if delete {
                 self.run(&format!("object.remove id={id}"));
             }
         }
@@ -567,6 +608,10 @@ impl Workspace {
         if key(Key::Escape) {
             if let Some(job) = &self.export_job {
                 job.cancel.store(true, Ordering::Relaxed);
+            } else if !self.prep.selection.is_empty() {
+                self.prep.selection.clear();
+            } else if self.prep.tool != crate::prep::PrepTool::Look {
+                self.prep.tool = crate::prep::PrepTool::Look;
             } else {
                 self.selected = None;
             }

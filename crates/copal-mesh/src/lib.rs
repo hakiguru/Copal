@@ -3,6 +3,7 @@
 //! A [`Mesh`] is an indexed triangle list. Import from STL/OBJ/3MF arrives in 0.1;
 //! repair, booleans and editing come later (see `docs/ROADMAP.md`).
 
+pub mod bvh;
 pub mod import;
 
 use glam::{Mat4, Vec3};

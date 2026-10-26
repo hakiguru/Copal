@@ -467,6 +467,7 @@ impl Command for Import {
                 ..Default::default()
             },
             mesh: self.mesh.clone(),
+            prep: Default::default(),
             text: None,
         }
         .apply(doc)
@@ -517,6 +518,7 @@ impl Command for Duplicate {
                     ..src.transform
                 },
                 mesh: src.mesh.clone(),
+                prep: src.prep.clone(),
                 text: None,
             }
             .apply(doc)?;
@@ -565,9 +567,11 @@ impl Command for Mirror {
             .object_mut(self.id)
             .ok_or(CommandError::NoSuchObject(self.id))?;
         let old = o.transform;
+        let old_supports = o.prep.supports.take();
         o.transform = mirrored(old, self.axis);
-        if self.axis == 2 {
-            // Mirroring in Z turns the model upside down: put it back on the plate.
+        if self.axis == 2 || old_supports.is_some() {
+            // Mirroring in Z turns the model upside down, and mirrored supports would not fit:
+            // put it back on the plate.
             if let Some(b) = o.world_bounds() {
                 o.transform.translation.z -= b.min.z;
             }
@@ -575,6 +579,7 @@ impl Command for Mirror {
         Ok(Box::new(SetTransform {
             id: self.id,
             transform: old,
+            supports: Some(old_supports),
         }))
     }
 }
@@ -652,7 +657,11 @@ impl Command for Arrange {
             .map(|(id, pos)| {
                 let mut t = doc.object(id).map(|o| o.transform).unwrap_or_default();
                 t.translation = pos;
-                Box::new(SetTransform { id, transform: t }) as Box<dyn Command>
+                Box::new(SetTransform {
+                    id,
+                    transform: t,
+                    supports: None,
+                }) as Box<dyn Command>
             })
             .collect();
         Batch::inverse(moves).apply(doc)

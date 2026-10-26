@@ -1,6 +1,6 @@
 [package]
 name = "copal-supports"
-description = "Support generation for Copal"
+description = "Copal prepare tools: islands, automatic and manual supports, rafts, hollowing, drain holes"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,15 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+copal-mesh.workspace = true
+copal-presets.workspace = true
+copal-slice.workspace = true
+glam.workspace = true
+rayon.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true

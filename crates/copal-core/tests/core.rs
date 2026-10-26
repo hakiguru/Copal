@@ -343,3 +343,79 @@ fn version_one_projects_still_open() {
     assert_eq!(doc.name, "old");
     assert_eq!(doc.settings, copal_core::ProjectSettings::default());
 }
+
+#[test]
+fn supports_hollow_and_holes_follow_the_object_and_undo() {
+    let mut s = Session::new(Document::new("prep"));
+    s.run_script("object.add_cube size=20\nobject.rotate id=1 x=30 y=-15")
+        .unwrap();
+    let bottom = s.doc.objects()[0].world_bounds().unwrap().min.z;
+    assert!(bottom.abs() < 1e-3);
+    s.run_line("supports.auto id=1").unwrap();
+    let o = &s.doc.objects()[0];
+    let set = o.prep.supports.clone().unwrap();
+    assert!(set.supports.len() > 10);
+    let lifted = o.world_bounds().unwrap().min.z;
+    assert!(
+        (lifted - 6.0).abs() < 1e-3,
+        "lift 5 mm + raft 1 mm, got {lifted}"
+    );
+
+    // Moving keeps the supports (they are relative to the object).
+    s.run_line("object.move id=1 x=12").unwrap();
+    assert_eq!(s.doc.objects()[0].prep.supports.as_deref(), Some(&*set));
+    // Dropping is refused, rotating removes them and puts the model back down.
+    assert!(s.run_line("object.drop id=1").is_err());
+    s.run_line("object.rotate id=1 z=10").unwrap();
+    assert!(s.doc.objects()[0].prep.supports.is_none());
+    assert!(s.doc.objects()[0].world_bounds().unwrap().min.z.abs() < 1e-3);
+    s.history.undo(&mut s.doc).unwrap();
+    assert_eq!(s.doc.objects()[0].prep.supports.as_deref(), Some(&*set));
+
+    // Remove two supports, resize one, add one by hand under the model.
+    let ids: Vec<u32> = set.supports.iter().map(|x| x.id).collect();
+    s.run_line(&format!("supports.remove id=1 sid={},{}", ids[0], ids[1]))
+        .unwrap();
+    s.run_line(&format!("supports.resize id=1 sid={} diameter=1.6", ids[2]))
+        .unwrap();
+    let now = s.doc.objects()[0].prep.supports.clone().unwrap();
+    assert_eq!(now.supports.len(), set.supports.len() - 2);
+    assert_eq!(now.get(ids[2]).unwrap().diameter, 1.6);
+    let tip = now.get(ids[2]).unwrap().tip + s.doc.objects()[0].transform.translation;
+    s.run_line(&format!(
+        "supports.add id=1 x={} y={} z={}",
+        tip.x + 1.5,
+        tip.y,
+        tip.z
+    ))
+    .unwrap();
+
+    // Hollow and a drain hole.
+    s.run_line("object.hollow id=1 thickness=2 voxel=0.6")
+        .unwrap();
+    assert!(s.doc.objects()[0].prep.cavity.is_some());
+    let b = s.doc.objects()[0].world_bounds().unwrap();
+    let c = b.center();
+    let top = copal_core::prepare::object_bvh(&s.doc.objects()[0])
+        .raycast(Vec3::new(c.x, c.y, b.max.z + 5.0), Vec3::NEG_Z, 0.0, 100.0)
+        .unwrap()
+        .point;
+    s.run_line(&format!(
+        "holes.add id=1 x={} y={} z={}",
+        top.x, top.y, top.z
+    ))
+    .unwrap();
+    assert_eq!(s.doc.objects()[0].prep.holes.len(), 1);
+
+    // Everything survives saving.
+    let mut buf = Cursor::new(Vec::new());
+    project::write_to(&s.doc, &mut buf).unwrap();
+    buf.set_position(0);
+    let back = project::read_from(buf).unwrap();
+    assert_eq!(back, s.doc);
+
+    s.run_line("supports.clear id=1").unwrap();
+    assert!(s.doc.objects()[0].prep.supports.is_none());
+    s.run_line("object.unhollow id=1").unwrap();
+    assert!(s.doc.objects()[0].prep.cavity.is_none());
+}

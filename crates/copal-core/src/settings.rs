@@ -38,6 +38,26 @@ pub struct Settings {
     pub mode: ColorMode,
     /// Size of the move / rotate / scale handles in the 3D view, 1 = normal.
     pub gizmo_size: f32,
+    /// Which side windows of the apps are open (they fold away like tool windows in an IDE).
+    pub panels: Panels,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Panels {
+    pub tools: bool,
+    pub settings: bool,
+    pub console: bool,
+}
+
+impl Default for Panels {
+    fn default() -> Self {
+        Self {
+            tools: true,
+            settings: true,
+            console: true,
+        }
+    }
 }
 
 impl Default for Settings {
@@ -46,6 +66,7 @@ impl Default for Settings {
             theme: ThemeStyle::Default,
             mode: ColorMode::Dark,
             gizmo_size: 1.0,
+            panels: Panels::default(),
         }
     }
 }
@@ -264,6 +285,10 @@ mod tests {
             theme: ThemeStyle::Art,
             mode: ColorMode::Light,
             gizmo_size: 1.25,
+            panels: Panels {
+                console: false,
+                ..Panels::default()
+            },
         };
         s.save_to(&path).unwrap();
         assert_eq!(Settings::load_from(&path).unwrap(), s);

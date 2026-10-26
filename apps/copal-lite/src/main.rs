@@ -11,8 +11,8 @@ use copal_core::Settings;
 use copal_ui_common::files::Purpose;
 use copal_ui_common::look::{Edge, State};
 use copal_ui_common::workspace::Step;
-use copal_ui_common::{Edition, Look, Workspace, widgets};
-use eframe::egui::{self, CentralPanel, Frame, Margin, Panel, ScrollArea, Ui, ViewportCommand};
+use copal_ui_common::{Edition, Look, Workspace};
+use eframe::egui::{self, CentralPanel, Frame, Margin, Panel, Ui, ViewportCommand};
 
 struct LiteApp {
     look: Look,
@@ -29,6 +29,8 @@ impl eframe::App for LiteApp {
         let p = look.pal;
         let ws = &mut self.ws;
         ws.poll_export(ui.ctx());
+        ws.poll_prep_job(ui.ctx());
+        ws.poll_presets(ui.ctx());
         ws.dropped_files(ui);
         ws.hotkeys(ui);
         let title = ws.title().replace("— Copal", "— Copal Lite");
@@ -93,6 +95,13 @@ impl eframe::App for LiteApp {
                             ws.show_settings = true;
                         }
                     });
+                    ui.menu_button("View", |ui| {
+                        let mut panels = ws.settings.panels;
+                        ui.checkbox(&mut panels.tools, "Tools   Alt+1");
+                        ui.checkbox(&mut panels.settings, "Settings   Alt+2");
+                        ui.checkbox(&mut panels.console, "Console   Alt+3");
+                        ws.set_panels(panels);
+                    });
                     ui.menu_button("Help", |ui| {
                         if ui.button("Console commands").clicked() {
                             ws.run("help");
@@ -107,59 +116,14 @@ impl eframe::App for LiteApp {
                 });
             });
 
-        Panel::bottom("status")
-            .frame(
-                Frame::new()
-                    .fill(p.base)
-                    .inner_margin(Margin::symmetric(8, 3)),
-            )
-            .show(ui, |ui| ui.horizontal(|ui| ws.status_line(ui, look)));
-
-        let console_fill = if look.art() { p.panel } else { p.term_bg };
-        let console = Panel::bottom("console")
-            .resizable(true)
-            .default_size(120.0)
-            .min_size(40.0)
-            .frame(
-                Frame::new()
-                    .fill(console_fill)
-                    .inner_margin(Margin::same(8)),
-            )
-            .show(ui, |ui| ws.console_panel(ui, look));
-
-        let side = Panel::left("side")
-            .resizable(true)
-            .default_size(260.0)
-            .min_size(190.0)
-            .frame(Frame::new().fill(p.panel).inner_margin(Margin::same(10)))
-            .show(ui, |ui| {
-                ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        widgets::wordmark(ui, look, 28.0);
-                        ui.add_space(4.0);
-                        ui.horizontal_wrapped(|ui| ws.printer_resin_pickers(ui, look));
-                        ws.tool_shelf(ui, look);
-                    });
-            });
-
-        let right = Panel::right("settings")
-            .resizable(true)
-            .default_size(300.0)
-            .min_size(220.0)
-            .frame(Frame::new().fill(p.panel).inner_margin(Margin::same(10)))
-            .show(ui, |ui| ws.settings_panel(ui, look));
+        let windows = copal_ui_common::layout::side_windows(ui, ws, look);
 
         CentralPanel::default()
             .frame(Frame::new().fill(p.void))
             .show(ui, |ui| ws.viewport(ui, look));
 
         let painter = ui.painter();
-        for rect in [
-            side.response.rect,
-            right.response.rect,
-            console.response.rect,
-        ] {
+        for rect in windows {
             look.outline(painter, rect.shrink(1.0), Edge::Panel, State::Idle);
         }
 

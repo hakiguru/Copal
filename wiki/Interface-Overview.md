@@ -3,7 +3,8 @@
 - **Top bar** — the steps **Layout → Prepare → Export**, printer and resin pickers, Open, Save,
   History and Preferences.
 - **Tools** (left) — change with the step. Layout: import, move / rotate / scale, mirror,
-  duplicate, arrange. Prepare: checks (supports and hollowing arrive in 0.2 → 0.3). Export: slice,
+  duplicate, arrange. Prepare: auto supports, the View / Select / Add tools, islands check, hollowing and
+  drain holes. Export: slice,
   layer preview, recent prints.
 - **3D view** (center) — the build plate, your models and the handles of the selected model.
   Buttons on top: Iso / Top / Front / Side views, Overhangs, handle size − / +, and Layers in the
@@ -15,6 +16,15 @@
   count and print time.
 
 Every panel can be resized: drag its edge.
+
+### Hiding panels
+Tools, settings and the console fold away like tool windows in IntelliJ:
+- the **—** button in a panel's header hides it; a folded side panel becomes a thin stripe with its
+  name, click the stripe to bring it back,
+- **Console** at the left of the status bar shows or hides the console,
+- **Alt+1** tools, **Alt+2** settings, **Alt+3** console.
+
+Copal remembers which panels are open. In Copal Lite the same switches are in the **View** menu.
 
 ## Copal Lite
 

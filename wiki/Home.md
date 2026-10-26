@@ -12,8 +12,9 @@
 > [!NOTE]
 > **Copal 0.1 slices!** Import STL / OBJ / 3MF, place models with handles or by dragging them over
 > the plate, set up exposure and lift, look through the layers and export an Elegoo `.goo` file.
-> Every export goes to the print history with a copy of the project. Supports and hollowing come
-> next (0.2 → 0.3); pages for planned features say which version brings them.
+> Every export goes to the print history with a copy of the project. **0.2** adds auto and manual
+> supports with braces and a raft, hollowing, drain holes, your own resins and panels that fold
+> away. Pages for planned features say which version brings them.
 
 ## Welcome
 
@@ -72,7 +73,7 @@ This wiki is the user guide. It grows together with the app.
 
 С версии 0.1 Copal нарезает модели в файлы `.goo` для Elegoo: импорт STL / OBJ / 3MF, гизмо для
 перемещения, поворота и масштаба, перетаскивание модели по столу, настройки смолы и печати,
-предпросмотр слоёв и история печати с копией проекта. Поддержки и опустошение — в 0.2 → 0.3.
-Вики пока на английском; русский интерфейс и страницы появятся в 0.2.
+предпросмотр слоёв и история печати с копией проекта. В 0.2 появились авто- и ручные поддержки с распорками и рафтом, опустошение, дренажные отверстия и свои пресеты смол.
+Вики пока на английском; русский интерфейс и страницы появятся в 0.3.
 
 </details>

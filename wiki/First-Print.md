@@ -1,6 +1,6 @@
 > [!NOTE]
-> Steps 1–3 and 6–7 work in **Copal 0.1**. Supports (step 4) arrive in 0.3 and hollowing (step 5)
-> in 0.2 — until then add supports in another tool or print models that need none.
+> Every step works since **Copal 0.2**. Auto orient (step 3) arrives in 0.3; until then turn the
+> model by hand.
 
 
 A full walkthrough from a model file to a print.
@@ -14,10 +14,12 @@ Drop an STL, OBJ or 3MF file on the window, or press **Import models…** (Ctrl+
 
 ## 3. Orient and place
 Rotate the model with the **Rotate** handles (`R`) and drag it over the plate. Tilting models
-30–45° usually prints better. **Auto orient** comes in 0.2. See [[Layout]].
+30–45° usually prints better. **Auto orient** comes in 0.3. See [[Layout]].
 
 ## 4. Add supports
-Open the **Supports** step and press **Auto supports**. Check the island warnings.
+Open the **Prepare** step, pick **Light**, **Medium** or **Heavy** and press **Auto supports**.
+Press **Check islands**: it should say "All islands are supported". Add missing supports with the
+**Add** tool.
 See [[Supports]].
 
 ## 5. Hollow (optional)

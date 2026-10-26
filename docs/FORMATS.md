@@ -10,7 +10,7 @@ for inspection and conversion.
 
 | Format | Used by | Notes |
 |---|---|---|
-| `.goo` | Elegoo (Saturn 4 Ultra, Mars 5 Ultra and newer) | **Writer and reader done (0.1).** Header, previews, per-layer motion, RLE with checksum. Checked by reading every layer of files from another slicer and re-encoding them. Image orientation still to be confirmed (see below). |
+| `.goo` | Elegoo (Saturn 4 Ultra, Mars 5 Ultra and newer) | **Writer and reader done (0.1).** Header, previews, per-layer motion, RLE with checksum. Checked by reading every layer of files from another slicer and re-encoding them. Image orientation confirmed against Lychee (0.2). |
 | `.ctb` | Chitu boards: older Elegoo, Phrozen, Uniformation, many others | Several versions; newer ones are encrypted. Planned for 0.2. |
 
 ### `.goo` notes
@@ -21,9 +21,11 @@ for inspection and conversion.
 - Volume in the header is in mm³.
 - Files from Lychee 7.6.6 contain only black and white pixels even with anti-aliasing level 8 in the
   header. Copal writes real grey edge pixels when anti-aliasing is on.
-- **Open question:** whether the image has to be written mirrored for printers with `mirror_y`.
-  Copal currently flips the image in Y for such printers. `assets/test-models/orientation-F.stl`
-  sliced in both slicers and compared with `copal-cli inspect --layer N --png` settles it.
+- **Image orientation (confirmed 2026-10-26):** for printers with `mirror_y` the image is flipped in
+  Y. `assets/test-models/orientation-F.stl` sliced by Lychee 7.6.6 and by Copal for the Saturn 4
+  Ultra 16K: layer 20 is the same F, same way round; the only difference is a 2-pixel (0.028 mm)
+  shift in X from where each slicer centers the model. Compared with
+  `copal-cli inspect --layer 20 --png`. The format becomes *stable* after a real print.
 
 ### Tier 2 — big database release (0.7)
 

@@ -21,7 +21,7 @@ What Copal writes into the file:
 - Two preview pictures that the printer shows.
 
 ## Formats
-`.goo` for Elegoo printers now; `.ctb` in 0.2, more in 0.7. See [[File formats|File-Formats]].
+`.goo` for Elegoo printers now; `.ctb` in 0.3, more in 0.7. See [[File formats|File-Formats]].
 
 > [!WARNING]
 > Copal 0.1 has not made a real print yet. Until the image orientation is confirmed

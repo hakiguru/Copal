@@ -32,6 +32,8 @@ pub enum ExportError {
     OutsidePlate(String),
     #[error("`{0}` is taller than the printer can build")]
     TooTall(String),
+    #[error("`{0}` floats above the plate without supports: add supports or drop it to the plate")]
+    Floating(String),
     #[error("cancelled")]
     Cancelled,
     #[error("could not write the file: {0}")]
@@ -57,21 +59,74 @@ pub struct ExportReport {
 pub fn scene_triangles(doc: &Document) -> Vec<[Vec3; 3]> {
     let mut out = Vec::new();
     for o in doc.objects() {
-        let m = o.transform.matrix();
-        let flip = m.determinant() < 0.0;
-        let p: Vec<Vec3> = o
+        object_triangles(o, &mut out);
+    }
+    out
+}
+
+fn mesh_triangles(mesh: &copal_core::supports::geometry::SupportMesh, out: &mut Vec<[Vec3; 3]>) {
+    let m = &mesh.mesh;
+    out.extend(
+        m.triangles
+            .iter()
+            .map(|t| t.map(|i| m.positions[i as usize])),
+    );
+}
+
+/// Everything one object adds to the slices: the model, its hollow inside (inside out), drain
+/// holes (inside out) and its supports with the raft.
+pub fn object_triangles(o: &copal_core::SceneObject, out: &mut Vec<[Vec3; 3]>) {
+    let m = o.transform.matrix();
+    let flip = m.determinant() < 0.0;
+    let mut add = |mesh: &copal_core::supports::geometry::SupportMesh, placed: bool| {
+        if placed {
+            mesh_triangles(mesh, out);
+            return;
+        }
+        let p: Vec<Vec3> = mesh
             .mesh
             .positions
             .iter()
             .map(|v| m.transform_point3(*v))
             .collect();
-        out.extend(o.mesh.triangles.iter().map(|t| {
+        out.extend(mesh.mesh.triangles.iter().map(|t| {
             let (a, b, c) = (p[t[0] as usize], p[t[1] as usize], p[t[2] as usize]);
             // A mirrored object turns its triangles inside out; turn them back.
             if flip { [a, c, b] } else { [a, b, c] }
         }));
+    };
+    let wrap = |mesh: copal_core::supports::Mesh| copal_core::supports::geometry::SupportMesh {
+        mesh,
+        ranges: Vec::new(),
+    };
+    add(&wrap((*o.mesh).clone()), false);
+    if let Some(c) = &o.prep.cavity {
+        add(&wrap((**c).clone()), false);
     }
-    out
+    for h in &o.prep.holes {
+        let point = m.transform_point3(h.point);
+        let dir = m.transform_vector3(h.dir).normalize_or(Vec3::NEG_Z);
+        let hole = copal_core::supports::hollow::drain_hole(point, dir, h.diameter, h.depth);
+        add(&wrap(hole), true);
+    }
+    if let Some(s) = &o.prep.supports {
+        add(
+            &copal_core::supports::build_mesh(s, o.transform.translation),
+            true,
+        );
+    }
+}
+
+/// Bounds of what an object prints, supports and raft included.
+pub fn object_print_bounds(o: &copal_core::SceneObject) -> Option<(Vec3, Vec3)> {
+    let mut b = o.world_bounds().map(|b| (b.min, b.max))?;
+    if let Some(s) = &o.prep.supports {
+        let mesh = copal_core::supports::build_mesh(s, o.transform.translation);
+        if let Some(sb) = mesh.mesh.bounds() {
+            b = (b.0.min(sb.min), b.1.max(sb.max));
+        }
+    }
+    Some(b)
 }
 
 /// The printer of the project, or an error saying what is missing.
@@ -91,15 +146,20 @@ pub fn check_fits(doc: &Document, printer: &Printer) -> Result<(), ExportError> 
     let [w, d, h] = printer.volume_mm();
     let eps = 1e-3;
     for o in doc.objects() {
-        let Some(b) = o.world_bounds() else { continue };
-        if b.min.x < -w / 2.0 - eps
-            || b.max.x > w / 2.0 + eps
-            || b.min.y < -d / 2.0 - eps
-            || b.max.y > d / 2.0 + eps
+        let Some((min, max)) = object_print_bounds(o) else {
+            continue;
+        };
+        if min.x < -w / 2.0 - eps
+            || max.x > w / 2.0 + eps
+            || min.y < -d / 2.0 - eps
+            || max.y > d / 2.0 + eps
         {
             return Err(ExportError::OutsidePlate(o.name.clone()));
         }
-        if b.max.z > h + eps {
+        if !o.prep.has_supports() && min.z > 0.05 {
+            return Err(ExportError::Floating(o.name.clone()));
+        }
+        if max.z > h + eps {
             return Err(ExportError::TooTall(o.name.clone()));
         }
     }

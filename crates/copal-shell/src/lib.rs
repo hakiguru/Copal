@@ -47,12 +47,20 @@ pub const COMMANDS: &[(&str, &str)] = &[
         "history [show|rate|open|remove] …  exported files and how they printed",
     ),
     ("import", "import <file> …  add STL, OBJ or 3MF models"),
+    (
+        "hollow",
+        "hollow [id|all]  hollow models with the wall thickness from the Hollow settings",
+    ),
     ("info", "info  the project, its objects and estimates"),
+    (
+        "islands",
+        "islands [id|all]  find islands that no support holds",
+    ),
     ("new", "new [name]  start an empty project"),
     ("open", "open <file.copal>  open a project"),
     (
         "presets",
-        "presets [save|load|delete <kind> <name>]  your saved settings",
+        "presets [save|load|delete <kind> <name> | import <file.toml> | folder | reload]  your saved settings and resins",
     ),
     ("printers", "printers  every printer Copal knows"),
     ("redo", "redo  repeat the last undone step"),
@@ -66,6 +74,10 @@ pub const COMMANDS: &[(&str, &str)] = &[
         "settings [print|supports|hollow|layout]  show project settings",
     ),
     ("steps", "steps  what undo would revert, newest last"),
+    (
+        "supports",
+        "supports [auto|islands|clear] [id|all]  add or remove supports; no action lists them",
+    ),
     ("undo", "undo  revert the last step"),
 ];
 
@@ -167,6 +179,20 @@ impl Shell {
                 self.export(&mut out, args.first().map(String::as_str));
             }
             "info" => self.info(&mut out),
+            "supports" => self.supports(&mut out, &args),
+            "islands" => self.islands(&mut out, &args),
+            "hollow" => {
+                let h = self.session.doc.settings.hollow;
+                for id in self.targets(&mut out, args.first().map(String::as_str)) {
+                    self.exec(
+                        &mut out,
+                        &format!(
+                            "object.hollow id={id} thickness={} voxel={}",
+                            h.wall_thickness_mm, h.voxel_mm
+                        ),
+                    );
+                }
+            }
             "settings" => self.settings(&mut out, &args),
             "printers" => {
                 for p in &library().printers {
@@ -429,6 +455,63 @@ impl Shell {
             }
             return;
         }
+        match action {
+            "folder" => {
+                return match user.ensure_folder(Kind::Resin) {
+                    Ok(dir) => {
+                        out.info(format!("Presets: {}", user.dir.display()));
+                        out.info(format!(
+                            "Resins:  {}  (drop .toml files here, README.txt shows the format)",
+                            dir.display()
+                        ));
+                    }
+                    Err(e) => out.err(e),
+                };
+            }
+            "reload" => {
+                let problems = copal_core::reload_user_library();
+                let n = user.resin_files().iter().filter(|(_, r)| r.is_ok()).count();
+                out.info(format!("Personal resins: {n}"));
+                for p in problems {
+                    out.err(format!("skipped {p}"));
+                }
+                return;
+            }
+            "import" => {
+                if args.len() < 2 {
+                    return out.err("usage: presets import <file.toml>…");
+                }
+                for file in &args[1..] {
+                    match user.import_resin(Path::new(file)) {
+                        Ok((r, dest)) => {
+                            out.info(format!("Imported {} ({})", r.title(), dest.display()));
+                            if let Some(p) = &self.session.doc.printer
+                                && r.profile_for(p).is_none()
+                            {
+                                let printers: Vec<&str> =
+                                    r.profiles.iter().map(|p| p.printer.as_str()).collect();
+                                out.err(format!(
+                                    "{} has no settings for {p}, only for: {}",
+                                    r.title(),
+                                    printers.join(", ")
+                                ));
+                            } else {
+                                out.info(format!(
+                                    "Use it: project.set_resin resin={}",
+                                    quote(&r.id)
+                                ));
+                            }
+                        }
+                        Err(e) => out.err(e),
+                    }
+                }
+                for p in copal_core::reload_user_library() {
+                    out.err(format!("skipped {p}"));
+                }
+                return;
+            }
+            _ => {}
+        }
         let (Some(kind_name), Some(_)) = (args.get(1), args.get(2)) else {
             return out.err(format!(
                 "usage: presets {action} <kind> <name>   kinds: {}",
@@ -441,13 +524,27 @@ impl Shell {
                 PRESET_KINDS.join(", ")
             ));
         };
-        let name = args[2..].join(" ");
+        // `brand=…`, `color=…` and `type=…` describe a resin; everything else is the name.
+        let mut meta = ResinMeta::default();
+        let mut words = Vec::new();
+        for a in &args[2..] {
+            match a.split_once('=') {
+                Some(("brand", v)) => meta.brand = v.to_string(),
+                Some(("color", v)) => meta.color = v.to_string(),
+                Some(("type", v)) => meta.kind = v.to_string(),
+                _ => words.push(a.as_str()),
+            }
+        }
+        let name = words.join(" ");
+        if name.trim().is_empty() {
+            return out.err("give the preset a name");
+        }
         let s = self.session.doc.settings;
         match action {
             "save" => {
                 let saved = match kind {
                     Kind::Resin => self
-                        .resin_preset(&name)
+                        .resin_preset_with(&name, &meta)
                         .and_then(|r| user.save(kind, &name, &r).map_err(|e| e.to_string())),
                     Kind::Exposure => save(&user, kind, &name, &s.print.exposure),
                     Kind::Motion => save(&user, kind, &name, &s.print.motion),
@@ -503,6 +600,23 @@ impl Shell {
                     Err(e) => out.err(e),
                 }
             }
+            "delete" if kind == Kind::Resin => {
+                let id = if name.contains('/') {
+                    name.clone()
+                } else {
+                    format!("my/{}", slug(&name))
+                };
+                let result = user
+                    .delete_resin(&id)
+                    .or_else(|_| user.delete(kind, &name).map(|()| PathBuf::from(&name)));
+                match result {
+                    Ok(path) => {
+                        copal_core::reload_user_library();
+                        out.info(format!("Deleted resin `{name}` ({})", path.display()))
+                    }
+                    Err(e) => out.err(e),
+                }
+            }
             "delete" => match user.delete(kind, &name) {
                 Ok(()) => {
                     if kind == Kind::Resin {
@@ -513,25 +627,41 @@ impl Shell {
                 Err(e) => out.err(e),
             },
             other => out.err(format!(
-                "unknown action `{other}`: list, save, load or delete"
+                "unknown action `{other}`: list, save, load, delete, import, folder or reload"
             )),
         }
     }
 
     /// The current print settings as a personal resin for the current printer.
     pub fn resin_preset(&self, name: &str) -> Result<Resin, String> {
+        self.resin_preset_with(name, &ResinMeta::default())
+    }
+
+    /// Like [`Shell::resin_preset`], with a brand, color and type. Empty ones are taken from the
+    /// resin the project uses now (brand: "My").
+    pub fn resin_preset_with(&self, name: &str, meta: &ResinMeta) -> Result<Resin, String> {
         let d = &self.session.doc;
         let printer = d.printer.clone().ok_or("choose a printer first")?;
         let base = d
             .resin
             .as_deref()
             .and_then(|id| library().resin(id).cloned());
+        let or = |v: &str, d: String| {
+            if v.trim().is_empty() {
+                d
+            } else {
+                v.trim().to_string()
+            }
+        };
         let mut resin = Resin {
             id: format!("my/{}", slug(name)),
-            brand: "My".into(),
-            name: name.to_string(),
-            color: String::new(),
-            kind: base.as_ref().map(|b| b.kind.clone()).unwrap_or_default(),
+            brand: or(&meta.brand, "My".into()),
+            name: name.trim().to_string(),
+            color: or(&meta.color, String::new()),
+            kind: or(
+                &meta.kind,
+                base.as_ref().map(|b| b.kind.clone()).unwrap_or_default(),
+            ),
             based_on: base.as_ref().map(|b| b.id.clone()),
             profiles: Vec::new(),
         };
@@ -655,6 +785,84 @@ impl Shell {
         }
     }
 
+    /// Object ids from `id`, `all` or nothing (= all).
+    fn targets(&self, out: &mut Out, arg: Option<&str>) -> Vec<ObjectId> {
+        match arg {
+            None | Some("all") => self.object_ids(),
+            Some(x) => match x.parse::<u64>() {
+                Ok(n) if self.session.doc.object(ObjectId(n)).is_some() => vec![ObjectId(n)],
+                _ => {
+                    out.err(format!("no object `{x}`"));
+                    Vec::new()
+                }
+            },
+        }
+    }
+
+    fn supports(&mut self, out: &mut Out, args: &[String]) {
+        let action = args.first().map(String::as_str).unwrap_or("list");
+        if action == "list" {
+            for o in self.session.doc.objects() {
+                match &o.prep.supports {
+                    Some(s) => out.info(format!(
+                        "[{}] {} — {} supports ({} by hand), {} braces{}",
+                        o.id,
+                        o.name,
+                        s.supports.len(),
+                        s.supports.iter().filter(|x| x.manual).count(),
+                        s.braces.len(),
+                        if s.raft.is_empty() { "" } else { ", raft" }
+                    )),
+                    None => out.info(format!("[{}] {} — no supports", o.id, o.name)),
+                }
+            }
+            return;
+        }
+        let ids = self.targets(out, args.get(1).map(String::as_str));
+        for id in ids {
+            let line = match action {
+                "auto" => format!("supports.auto id={id}"),
+                "islands" => format!("supports.auto id={id} mode=islands"),
+                "clear" => format!("supports.clear id={id}"),
+                other => return out.err(format!("unknown action `{other}`: auto, islands, clear")),
+            };
+            self.exec(out, &line);
+            if let Some(s) = self
+                .session
+                .doc
+                .object(id)
+                .and_then(|o| o.prep.supports.clone())
+            {
+                out.info(format!(
+                    "[{id}] {} supports, {} braces",
+                    s.supports.len(),
+                    s.braces.len()
+                ));
+            }
+        }
+    }
+
+    fn islands(&mut self, out: &mut Out, args: &[String]) {
+        for id in self.targets(out, args.first().map(String::as_str)) {
+            match copal_core::prepare::unsupported_islands(&self.session.doc, id) {
+                Ok(list) if list.is_empty() => {
+                    out.info(format!("[{id}] every island is supported"))
+                }
+                Ok(list) => {
+                    out.err(format!("[{id}] {} islands without support:", list.len()));
+                    for i in list.iter().take(20) {
+                        let c = (i.min + i.max) / 2.0;
+                        out.info(format!(
+                            "    at x={:.1} y={:.1} z={:.2}, {:.2} mm²",
+                            c.x, c.y, i.z, i.area
+                        ));
+                    }
+                }
+                Err(e) => out.err(e),
+            }
+        }
+    }
+
     /// Completes the word before the cursor: shell commands, document commands, then argument
     /// names of the command on the line.
     pub fn complete(&self, line: &str) -> Vec<String> {
@@ -687,11 +895,13 @@ impl Shell {
                 } else if head == "settings" {
                     Section::ALL.iter().map(|s| s.name().to_string()).collect()
                 } else if head == "presets" {
-                    ["save", "load", "delete", "list"]
-                        .iter()
-                        .map(|s| s.to_string())
-                        .chain(PRESET_KINDS.iter().map(|s| s.to_string()))
-                        .collect()
+                    [
+                        "save", "load", "delete", "list", "import", "folder", "reload",
+                    ]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .chain(PRESET_KINDS.iter().map(|s| s.to_string()))
+                    .collect()
                 } else if head == "history" {
                     ["show", "rate", "open", "remove", "list", "folder"]
                         .iter()
@@ -815,6 +1025,14 @@ impl Out {
 /// Keeps `SetSettings` reachable for apps that build preset lines themselves.
 pub fn settings_line(section: Section, doc: &Document) -> String {
     SetSettings::line_for(section, &doc.settings)
+}
+
+/// Brand, color and type of a resin saved from the current settings.
+#[derive(Debug, Clone, Default)]
+pub struct ResinMeta {
+    pub brand: String,
+    pub color: String,
+    pub kind: String,
 }
 
 #[cfg(test)]

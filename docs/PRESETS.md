@@ -32,6 +32,20 @@ overwritten by updates. One folder per kind:
 A personal resin gets the id `my/<name>` and shows up in the resin list. Loading a preset runs one
 `<section>.set …` command, so it is one undo step.
 
+### Personal resin files (0.2)
+
+- Any `*.toml` in `resins/` is loaded under its real file name (spaces and capitals are fine).
+- `id`, `brand` and `name` are optional: missing ones become `my/<slug of file name>`, `My` and the
+  file name. At least one `[[profiles]]` with a `printer` is required; every other value defaults.
+- A file whose `id` matches a built-in resin replaces it.
+- `UserPresets::signature` hashes names, sizes and times of the folder; the apps poll it every
+  1.5 s and reload the library on change (`copal_core::reload_user_library`), so files copied into
+  the folder show up while Copal runs. Unreadable files are reported, never silently dropped.
+- `ensure_folder` writes a `README.txt` with the format (`copal-presets/src/resin-readme.txt`).
+- Import: `presets import <file.toml>` (console, `copal-cli presets import`), **Import file…** in the
+  Resin tab, or drop the file on the window. Lychee `.lyr` files are encrypted and not supported;
+  we do not break that encryption (`docs/RESEARCH.md`).
+
 Planned (calibration wizard, 0.2) — batch, bottle date and temperature notes:
 
 ```toml

@@ -15,6 +15,8 @@ pub enum Purpose {
     OpenProject,
     SaveProject,
     Export,
+    /// A resin preset file (`.toml`) to copy into the personal resin folder.
+    ImportResin,
 }
 
 impl Purpose {
@@ -24,6 +26,7 @@ impl Purpose {
             Purpose::OpenProject => "Open project",
             Purpose::SaveProject => "Save project",
             Purpose::Export => "Export printer file",
+            Purpose::ImportResin => "Import resin preset",
         }
     }
 
@@ -36,6 +39,7 @@ impl Purpose {
             Purpose::ImportModel => vec!["stl".into(), "obj".into(), "3mf".into()],
             Purpose::OpenProject | Purpose::SaveProject => vec!["copal".into()],
             Purpose::Export => vec![export_ext.to_string()],
+            Purpose::ImportResin => vec!["toml".into()],
         }
     }
 }
@@ -258,7 +262,12 @@ impl FileDialog {
                                 } else {
                                     let multi =
                                         ui.input(|i| i.modifiers.command || i.modifiers.shift);
-                                    if !multi || self.purpose != Purpose::ImportModel {
+                                    if !multi
+                                        || !matches!(
+                                            self.purpose,
+                                            Purpose::ImportModel | Purpose::ImportResin
+                                        )
+                                    {
                                         self.selected.clear();
                                     }
                                     if selected && multi {
@@ -300,6 +309,7 @@ impl FileDialog {
                         Purpose::OpenProject => "Open",
                         Purpose::SaveProject => "Save",
                         Purpose::Export => "Export",
+                        Purpose::ImportResin => "Import",
                     };
                     let ready = if self.purpose.saving() {
                         self.save_path().is_some()

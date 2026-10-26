@@ -251,11 +251,13 @@ impl Workspace {
             }
         }
 
-        // Click to select.
+        // Click: select, or use the Prepare tool.
         if response.clicked()
             && let Some(p) = response.interact_pointer_pos()
         {
-            self.selected = pick(self.doc(), &self.camera.ray(rect, p)).map(|(id, _)| id);
+            let ray = self.camera.ray(rect, p);
+            let shift = ui.input(|i| i.modifiers.shift);
+            self.click(&ray, rect, p, shift);
         }
         if response.double_clicked() {
             self.framed = false;
@@ -273,6 +275,30 @@ impl Workspace {
 
         // Draw.
         let frame = self.build_frame(look, rect, volume);
+        // Help line for the active Prepare tool.
+        if self.step == Step::Prepare {
+            let hint = match self.prep.tool {
+                crate::prep::PrepTool::Look => None,
+                crate::prep::PrepTool::Select => {
+                    Some("Click supports to select · Shift+click adds · Delete removes · Esc stops")
+                }
+                crate::prep::PrepTool::AddSupport => {
+                    Some("Click on the model to add a support · Esc stops")
+                }
+                crate::prep::PrepTool::AddHole => {
+                    Some("Click on the model to add a drain hole · Esc stops")
+                }
+            };
+            if let Some(h) = hint {
+                ui.painter().text(
+                    rect.center_bottom() - vec2(0.0, 22.0),
+                    Align2::CENTER_CENTER,
+                    h,
+                    FontId::proportional(13.0),
+                    look.pal.accent_text,
+                );
+            }
+        }
         let renderer = self.renderer.clone();
         let callback = egui_glow::CallbackFn::new(move |_info, painter| {
             let Ok(mut slot) = renderer.lock() else {
@@ -316,10 +342,90 @@ impl Workspace {
                 look.pal.accent,
             );
         }
+        // Islands without supports from the last check.
+        if let Some(found) = &self.prep.islands {
+            for (_, list) in found {
+                for i in list {
+                    let c = i
+                        .contacts
+                        .first()
+                        .map(|c| c.0)
+                        .unwrap_or(((i.min + i.max) / 2.0).extend(i.z));
+                    if let Some(sp) = self.camera.project(rect, c) {
+                        painter.circle(
+                            sp,
+                            5.0,
+                            look.pal.error.gamma_multiply(0.6),
+                            Stroke::new(1.5, look.pal.error),
+                        );
+                    }
+                }
+            }
+        }
         self.view_overlay(ui, look, rect);
     }
 
-    fn build_frame(&self, look: &Look, rect: Rect, volume: Vec3) -> Frame3d {
+    /// A click in the 3D view (no drag).
+    fn click(&mut self, ray: &Ray, rect: Rect, _pos: egui::Pos2, shift: bool) {
+        use crate::prep::PrepTool;
+        let tool = if self.step == Step::Prepare {
+            self.prep.tool
+        } else {
+            PrepTool::Look
+        };
+        let model_hit = pick(self.doc(), ray);
+        match tool {
+            PrepTool::Look => {
+                self.selected = model_hit.map(|(id, _)| id);
+            }
+            PrepTool::Select => {
+                let tol = self.camera.mm_per_point(rect, self.camera.target) * 4.0;
+                let hit = crate::prep::pick_support(self.doc(), ray, tol);
+                let model_t = model_hit.map(|(_, p)| (p - ray.origin).length());
+                match hit {
+                    Some((o, s, t)) if model_t.is_none_or(|mt| t < mt + 0.5) => {
+                        let key = (o, s);
+                        if shift {
+                            if let Some(i) = self.prep.selection.iter().position(|k| *k == key) {
+                                self.prep.selection.remove(i);
+                            } else {
+                                self.prep.selection.push(key);
+                            }
+                        } else {
+                            self.prep.selection = vec![key];
+                        }
+                        self.selected = Some(o);
+                    }
+                    _ => {
+                        if !shift {
+                            self.prep.selection.clear();
+                        }
+                    }
+                }
+            }
+            PrepTool::AddSupport => {
+                if let Some((id, p)) = model_hit {
+                    self.selected = Some(id);
+                    self.run(&format!(
+                        "supports.add id={id} x={} y={} z={}",
+                        p.x, p.y, p.z
+                    ));
+                }
+            }
+            PrepTool::AddHole => {
+                if let Some((id, p)) = model_hit {
+                    self.selected = Some(id);
+                    let h = self.doc().settings.hollow;
+                    self.run(&format!(
+                        "holes.add id={id} x={} y={} z={} diameter={} depth={}",
+                        p.x, p.y, p.z, h.drain_hole_diameter_mm, h.drain_hole_depth_mm
+                    ));
+                }
+            }
+        }
+    }
+
+    fn build_frame(&mut self, look: &Look, rect: Rect, volume: Vec3) -> Frame3d {
         let p = &look.pal;
         let (w, d, h) = (volume.x / 2.0, volume.y / 2.0, volume.z);
         let mut tris = Vec::new();
@@ -369,20 +475,89 @@ impl Workspace {
         }
 
         let selected = self.selected;
-        let objects = self
+        // In Prepare a fully tinted model hides its supports: only a light tint there.
+        let selected_color = if self.step == Step::Prepare {
+            let (a, b) = (rgb(p.object), rgb(p.object_selected));
+            [0, 1, 2].map(|i| a[i] * 0.7 + b[i] * 0.3)
+        } else {
+            rgb(p.object_selected)
+        };
+        let mut objects: Vec<DrawObject> = self
             .doc()
             .objects()
             .iter()
             .map(|o| DrawObject {
                 mesh: o.mesh.clone(),
                 model: o.transform.matrix(),
-                color: rgb(if Some(o.id) == selected {
-                    p.object_selected
+                color: if Some(o.id) == selected {
+                    selected_color
                 } else {
-                    p.object
-                }),
+                    rgb(p.object)
+                },
+                overhang: true,
             })
             .collect();
+        // Supports, the selected ones highlighted, and drain hole markers.
+        let support_color = if p.dark {
+            [0.55, 0.62, 0.70]
+        } else {
+            [0.45, 0.52, 0.62]
+        };
+        let prepared: Vec<_> = self
+            .doc()
+            .objects()
+            .iter()
+            .map(|o| {
+                (
+                    o.id,
+                    o.transform.translation,
+                    o.prep.supports.clone(),
+                    o.transform.matrix(),
+                    o.prep.holes.clone(),
+                )
+            })
+            .collect();
+        for (id, pos, set, m, holes) in prepared {
+            if let Some(set) = set {
+                let c = crate::prep::support_mesh(&mut self.prep, id, &set, pos.z);
+                let model = Mat4::from_translation(Vec3::new(pos.x, pos.y, 0.0));
+                objects.push(DrawObject {
+                    mesh: c.mesh.clone(),
+                    model,
+                    color: support_color,
+                    overhang: false,
+                });
+                if let Some((_, sel)) = &c.selected {
+                    objects.push(DrawObject {
+                        mesh: sel.clone(),
+                        model,
+                        color: rgb(p.accent),
+                        overhang: false,
+                    });
+                }
+            }
+            if !holes.is_empty() {
+                let mut hm = copal_mesh::Mesh::default();
+                for h in &holes {
+                    let point = m.transform_point3(h.point);
+                    let dir = m.transform_vector3(h.dir).normalize_or(Vec3::NEG_Z);
+                    copal_core::supports::geometry::frustum(
+                        &mut hm,
+                        point - dir * 0.15,
+                        h.diameter / 2.0,
+                        point + dir * 0.5,
+                        h.diameter / 2.0,
+                        20,
+                    );
+                }
+                objects.push(DrawObject {
+                    mesh: Arc::new(hm),
+                    model: Mat4::IDENTITY,
+                    color: [0.12, 0.13, 0.16],
+                    overhang: false,
+                });
+            }
+        }
         // Outline (bounding box) of the selected object.
         if let Some(b) = selected
             .and_then(|id| self.doc().object(id))

@@ -48,6 +48,16 @@ Add `--json` for machine-readable output, `--dry-run` to `run` and `script` to t
 `save`, `open`, `new`, `import`, `export`, `info`, `settings`, `printers`, `resins`, `presets`,
 `history` and every document command. `exit` quits.
 
+## Supports, hollowing, resins (0.2)
+```
+copal-cli run part.copal supports.auto id=1            # auto supports (mode=islands for islands only)
+copal-cli run part.copal object.hollow id=1 thickness=2.5
+copal-cli run part.copal holes.add id=1 x=-14 y=-35 z=30 diameter=3 depth=4
+copal-cli presets import "My Resin.toml"               # add a resin preset file
+copal-cli presets folder                               # where your resins live
+```
+In the shell: `supports [auto|islands|clear|list] [id|all]`, `islands [id|all]`, `hollow [id|all]`.
+See [[Supports]] and [[Hollowing and drain holes|Hollowing-and-Drain-Holes]].
+
 ## Coming later
-`supports.*` (0.3), hollowing commands (0.2), `copal-cli calibrate` (0.2), `convert` between
-formats (0.8), a text UI with a layer preview (0.8).
+`copal-cli calibrate` (0.3), `convert` between formats (0.8), a text UI with a layer preview (0.8).

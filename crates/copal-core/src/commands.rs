@@ -50,6 +50,24 @@ pub fn parse_command(line: &str) -> Result<Option<Box<dyn Command>>, CommandErro
 
 static REGISTRY: &[CommandInfo] = &[
     CommandInfo {
+        name: "holes.add",
+        summary: "Add a drain hole at a point on the model surface (goes into the model along its surface normal).",
+        usage: "holes.add id=<id> x=<mm> y=<mm> z=<mm> [diameter=<mm>] [depth=<mm>]",
+        build: crate::prepare::build_holes_add,
+    },
+    CommandInfo {
+        name: "holes.clear",
+        summary: "Remove all drain holes of an object.",
+        usage: "holes.clear id=<id>",
+        build: crate::prepare::build_holes_clear,
+    },
+    CommandInfo {
+        name: "holes.remove",
+        summary: "Remove one drain hole (numbers start at 0).",
+        usage: "holes.remove id=<id> index=<n>",
+        build: crate::prepare::build_holes_remove,
+    },
+    CommandInfo {
         name: "hollow.set",
         summary: "Change hollowing settings (wall thickness, drain holes).",
         usage: "hollow.set <setting>=<value> … (run `settings hollow` to see them)",
@@ -104,6 +122,12 @@ static REGISTRY: &[CommandInfo] = &[
                 count,
             }))
         },
+    },
+    CommandInfo {
+        name: "object.hollow",
+        summary: "Hollow an object: keep walls of the given thickness. Add drain holes so resin can flow out.",
+        usage: "object.hollow id=<id> [thickness=<mm>] [voxel=<mm>]",
+        build: crate::prepare::build_hollow,
     },
     CommandInfo {
         name: "object.import",
@@ -227,8 +251,18 @@ static REGISTRY: &[CommandInfo] = &[
                 rotation_deg: Vec3::new(a.get("rx")?, a.get("ry")?, a.get("rz")?),
                 scale: Vec3::new(a.get("sx")?, a.get("sy")?, a.get("sz")?),
             };
-            Ok(Box::new(SetTransform { id, transform: t }))
+            Ok(Box::new(SetTransform {
+                id,
+                transform: t,
+                supports: None,
+            }))
         },
+    },
+    CommandInfo {
+        name: "object.unhollow",
+        summary: "Make a hollowed object solid again.",
+        usage: "object.unhollow id=<id>",
+        build: crate::prepare::build_unhollow,
     },
     CommandInfo {
         name: "print.set",
@@ -262,6 +296,36 @@ static REGISTRY: &[CommandInfo] = &[
             a.only(&["resin"])?;
             Ok(Box::new(SetMachine::Resin(non_empty(a.str("resin")?))))
         },
+    },
+    CommandInfo {
+        name: "supports.add",
+        summary: "Add one support at a point on the model surface. Braces itself to neighbours when manual bracing is on.",
+        usage: "supports.add id=<id> x=<mm> y=<mm> z=<mm>",
+        build: crate::prepare::build_supports_add,
+    },
+    CommandInfo {
+        name: "supports.auto",
+        summary: "Add supports automatically: islands and overhangs (auto) or only islands. Lifts the model off the plate. Manual supports stay.",
+        usage: "supports.auto id=<id> [mode=auto|islands]",
+        build: crate::prepare::build_supports_auto,
+    },
+    CommandInfo {
+        name: "supports.clear",
+        summary: "Remove all supports of an object.",
+        usage: "supports.clear id=<id>",
+        build: crate::prepare::build_supports_clear,
+    },
+    CommandInfo {
+        name: "supports.remove",
+        summary: "Remove supports by their numbers.",
+        usage: "supports.remove id=<id> sid=<n>[,<n>…]",
+        build: crate::prepare::build_supports_remove,
+    },
+    CommandInfo {
+        name: "supports.resize",
+        summary: "Change the thickness of some supports.",
+        usage: "supports.resize id=<id> sid=<n>[,<n>…] [diameter=<mm>] [tip=<mm>]",
+        build: crate::prepare::build_supports_resize,
     },
     CommandInfo {
         name: "supports.set",
@@ -317,6 +381,7 @@ fn build_add_cube(a: &Args) -> Result<Box<dyn Command>, CommandError> {
         name,
         transform: Transform::default(),
         mesh: Arc::new(Mesh::cuboid(size)),
+        prep: Default::default(),
         text: Some(text),
     }))
 }
@@ -356,6 +421,7 @@ pub(crate) struct AddObject {
     pub name: String,
     pub transform: Transform,
     pub mesh: Arc<Mesh>,
+    pub prep: crate::document::Prepared,
     pub text: Option<String>,
 }
 
@@ -383,6 +449,7 @@ impl Command for AddObject {
             name: self.name.clone(),
             transform: self.transform,
             mesh: self.mesh.clone(),
+            prep: self.prep.clone(),
         };
         let index = self
             .index
@@ -418,6 +485,7 @@ impl Command for RemoveObject {
             name: o.name,
             transform: o.transform,
             mesh: o.mesh,
+            prep: o.prep,
             text: None,
         }))
     }
@@ -494,15 +562,18 @@ impl Command for EditTransform {
             .object_mut(self.id)
             .ok_or(CommandError::NoSuchObject(self.id))?;
         let old = o.transform;
+        let old_supports = o.prep.supports.clone();
         let was_on_plate = o.world_bounds().is_some_and(|b| b.min.z.abs() < 1e-3);
         match self.edit {
             Edit::Move(d) => o.transform.translation += d,
             Edit::Rotate(d) => o.transform.rotation_deg += d,
             Edit::Scale(f) => o.transform.scale *= f,
         }
-        // A model that stood on the plate stays on it after rotating or scaling.
+        let lost_supports = drop_stale_supports(o, &old);
+        // A model that stood on the plate stays on it after rotating or scaling. One that had
+        // supports goes back to the plate when they are removed.
         if keep_on_plate
-            && was_on_plate
+            && (was_on_plate || lost_supports)
             && !matches!(self.edit, Edit::Move(_))
             && let Some(b) = o.world_bounds()
         {
@@ -512,14 +583,29 @@ impl Command for EditTransform {
         Ok(Box::new(SetTransform {
             id: self.id,
             transform: old,
+            supports: Some(old_supports),
         }))
     }
+}
+
+/// Supports are made for one orientation and size. When either changes they no longer fit and
+/// are removed. Returns true if supports were removed.
+pub(crate) fn drop_stale_supports(o: &mut crate::document::SceneObject, old: &Transform) -> bool {
+    let changed = o.transform.rotation_deg != old.rotation_deg || o.transform.scale != old.scale;
+    if changed && o.prep.supports.is_some() {
+        o.prep.supports = None;
+        return true;
+    }
+    false
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct SetTransform {
     pub id: ObjectId,
     pub transform: Transform,
+    /// `Some`: set the supports to exactly this (used by undo). `None`: keep them if they still
+    /// fit (only the position changed), otherwise remove them.
+    pub supports: Option<Option<Arc<copal_supports::SupportSet>>>,
 }
 
 impl Command for SetTransform {
@@ -549,9 +635,17 @@ impl Command for SetTransform {
             .object_mut(self.id)
             .ok_or(CommandError::NoSuchObject(self.id))?;
         let old = std::mem::replace(&mut o.transform, self.transform);
+        let old_supports = o.prep.supports.clone();
+        match &self.supports {
+            Some(s) => o.prep.supports = s.clone(),
+            None => {
+                drop_stale_supports(o, &old);
+            }
+        }
         Ok(Box::new(SetTransform {
             id: self.id,
             transform: old,
+            supports: Some(old_supports),
         }))
     }
 }
@@ -574,6 +668,12 @@ impl Command for DropToPlate {
         let o = doc
             .object_mut(self.id)
             .ok_or(CommandError::NoSuchObject(self.id))?;
+        if o.prep.has_supports() {
+            return Err(CommandError::Invalid(format!(
+                "object {} stands on supports; remove them first (supports.clear id={})",
+                self.id, self.id
+            )));
+        }
         let old = o.transform;
         if let Some(b) = o.world_bounds() {
             o.transform.translation.z -= b.min.z;
@@ -581,6 +681,7 @@ impl Command for DropToPlate {
         Ok(Box::new(SetTransform {
             id: self.id,
             transform: old,
+            supports: None,
         }))
     }
 }

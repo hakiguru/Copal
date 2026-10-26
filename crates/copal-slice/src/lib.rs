@@ -4,8 +4,9 @@
 //! 1. Every triangle that crosses the middle of the layer gives one line segment. Segments are
 //!    oriented from the triangle's edge that goes down to the edge that goes up, so outer
 //!    contours run counter-clockwise (seen from above) and holes clockwise.
-//! 2. A scanline pass fills everything with a non-zero winding number. That handles touching
-//!    and overlapping models, hollow models with an inverted inner wall, and small mesh defects.
+//! 2. A scanline pass fills everything with a positive winding number. That handles touching
+//!    and overlapping models and supports (they add up), hollow models with an inside-out inner
+//!    wall, and drain holes (inside-out cylinders), which subtract wherever they are.
 //! 3. Anti-aliasing takes several sub-rows per pixel row and exact horizontal coverage, so edge
 //!    pixels get grey values.
 //!
@@ -249,6 +250,9 @@ impl Slicer {
         let mut emitted = 0usize; // pixels already sent to the sink
 
         let total = w * h;
+        // Inside a well-made mesh the winding is +1 in pixel space, or -1 when the image is
+        // mirrored once.
+        let sign = if r.mirror_x != r.mirror_y { -1 } else { 1 };
         for row in first..last {
             // Columns this row touched, inclusive. Only they are read and cleared, so a small
             // model on a 16K screen costs little.
@@ -279,12 +283,13 @@ impl Slicer {
                 let mut wind = 0;
                 let mut start = 0f32;
                 for &(x, d) in &xs {
-                    let before = wind;
-                    wind += d;
-                    if before == 0 && wind != 0 {
+                    let before = wind > 0;
+                    wind += d * sign;
+                    let after = wind > 0;
+                    if !before && after {
                         start = x;
-                    } else if before != 0
-                        && wind == 0
+                    } else if before
+                        && !after
                         && let Some((c0, c1)) =
                             add_span(&mut direct, &mut delta, start, x, w, aa == 1)
                     {

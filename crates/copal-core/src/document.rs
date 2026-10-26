@@ -8,7 +8,9 @@ use glam::{EulerRot, Mat4, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 
 /// Stable id of an object inside one project. Never reused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct ObjectId(pub u64);
 
@@ -49,6 +51,22 @@ impl Transform {
     }
 }
 
+/// What the Prepare step adds to an object: supports, hollowing and drain holes.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Prepared {
+    /// Supports, relative to the object's position (see `copal_supports`).
+    pub supports: Option<Arc<copal_supports::SupportSet>>,
+    /// Inner wall of a hollowed object, inside out, in the object's own coordinates.
+    pub cavity: Option<Arc<Mesh>>,
+    pub holes: Vec<copal_supports::DrainHole>,
+}
+
+impl Prepared {
+    pub fn has_supports(&self) -> bool {
+        self.supports.as_ref().is_some_and(|s| !s.is_empty())
+    }
+}
+
 /// One model on the build plate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SceneObject {
@@ -57,9 +75,25 @@ pub struct SceneObject {
     pub transform: Transform,
     /// Shared so that undo history can keep a copy cheaply.
     pub mesh: Arc<Mesh>,
+    pub prep: Prepared,
 }
 
 impl SceneObject {
+    pub fn new(
+        id: ObjectId,
+        name: impl Into<String>,
+        transform: Transform,
+        mesh: Arc<Mesh>,
+    ) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            transform,
+            mesh,
+            prep: Prepared::default(),
+        }
+    }
+
     /// Bounding box of the mesh after the object's transform.
     pub fn world_bounds(&self) -> Option<Aabb> {
         let m = self.transform.matrix();

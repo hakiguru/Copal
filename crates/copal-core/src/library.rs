@@ -32,6 +32,14 @@ pub fn load_user_library() -> Library {
     Library::load(user_presets().as_ref())
 }
 
+/// Reloads the user's presets (after a file was added to the folder). Returns a message for
+/// every personal resin file that could not be read.
+pub fn reload_user_library() -> Vec<String> {
+    let (lib, problems) = Library::load_checked(user_presets().as_ref());
+    set_library(lib);
+    problems
+}
+
 /// The user's personal preset folder, if the system has a config folder.
 pub fn user_presets() -> Option<copal_presets::UserPresets> {
     crate::settings::config_dir()

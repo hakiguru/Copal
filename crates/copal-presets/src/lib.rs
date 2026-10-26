@@ -31,6 +31,10 @@ pub enum PresetError {
     Write(#[from] toml::ser::Error),
     #[error("a preset name can not be empty")]
     EmptyName,
+    #[error("{0}: only Copal resin presets (.toml) can be imported")]
+    NotToml(PathBuf),
+    #[error("{0}: the resin has no settings (add a [[profiles]] section with a printer)")]
+    NoProfiles(String),
 }
 
 /// Is a printer confirmed by a real print?
@@ -135,8 +139,13 @@ pub struct ResinProfile {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Resin {
+    /// `brand/name`. Personal resins without an id get `my/<file name>`.
+    #[serde(default)]
     pub id: String,
+    #[serde(default)]
     pub brand: String,
+    /// Personal resins without a name get their file name.
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub color: String,
@@ -197,15 +206,24 @@ impl Library {
     /// Built-in presets plus personal resins from `user_dir` (see [`UserPresets`]).
     /// A personal resin with the same id as a built-in one replaces it.
     pub fn load(user: Option<&UserPresets>) -> Self {
+        Self::load_checked(user).0
+    }
+
+    /// Like [`Library::load`], plus a message for every personal resin file that could not be
+    /// read, so the user learns why a file they dropped in the folder does not show up.
+    pub fn load_checked(user: Option<&UserPresets>) -> (Self, Vec<String>) {
         let mut lib = Self::builtin();
+        let mut problems = Vec::new();
         if let Some(user) = user {
-            for (_, r) in user.load_all::<Resin>(Kind::Resin) {
+            let (resins, bad) = user.load_resins();
+            problems = bad;
+            for r in resins {
                 lib.resins.retain(|x| x.id != r.id);
                 lib.resins.push(r);
             }
         }
         lib.sort();
-        lib
+        (lib, problems)
     }
 
     fn sort(&mut self) {
@@ -344,6 +362,146 @@ impl UserPresets {
         std::fs::remove_file(&path).map_err(|e| PresetError::Io(path, e))
     }
 
+    /// The folder of one kind of presets (it may not exist yet).
+    pub fn folder(&self, kind: Kind) -> PathBuf {
+        self.dir.join(kind.folder())
+    }
+
+    /// Creates the folder of one kind and, for resins, a short README with the file format, so
+    /// someone who opens the folder knows what to put there. Returns the folder.
+    pub fn ensure_folder(&self, kind: Kind) -> Result<PathBuf, PresetError> {
+        let dir = self.folder(kind);
+        std::fs::create_dir_all(&dir).map_err(|e| PresetError::Io(dir.clone(), e))?;
+        if kind == Kind::Resin {
+            let readme = dir.join("README.txt");
+            if !readme.exists() {
+                std::fs::write(&readme, RESIN_README).map_err(|e| PresetError::Io(readme, e))?;
+            }
+        }
+        Ok(dir)
+    }
+
+    /// Every `.toml` file in the resin folder, as it is named on disk, with what it holds.
+    pub fn resin_files(&self) -> Vec<(PathBuf, Result<Resin, String>)> {
+        let mut files: Vec<PathBuf> = std::fs::read_dir(self.folder(Kind::Resin))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("toml"))
+            })
+            .collect();
+        files.sort();
+        files
+            .into_iter()
+            .map(|path| {
+                let stem = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let r = std::fs::read_to_string(&path)
+                    .map_err(|e| e.to_string())
+                    .and_then(|text| parse_resin(&stem, &text).map_err(|e| e.to_string()));
+                (path, r)
+            })
+            .collect()
+    }
+
+    /// All personal resins, and a message for each file that could not be read.
+    /// Missing ids, brands and names are filled in from the file name.
+    pub fn load_resins(&self) -> (Vec<Resin>, Vec<String>) {
+        let mut resins = Vec::new();
+        let mut problems = Vec::new();
+        for (path, r) in self.resin_files() {
+            match r {
+                Ok(r) => resins.push(r),
+                Err(e) => {
+                    let file = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    // Parse errors already name the file.
+                    problems.push(if e.starts_with(&file) || e.contains(".toml") {
+                        e
+                    } else {
+                        format!("{file}: {e}")
+                    });
+                }
+            }
+        }
+        (resins, problems)
+    }
+
+    /// Deletes the file of a personal resin, found by its id. Returns the deleted file.
+    pub fn delete_resin(&self, id: &str) -> Result<PathBuf, PresetError> {
+        let path = self
+            .resin_files()
+            .into_iter()
+            .find(|(_, r)| r.as_ref().is_ok_and(|r| r.id == id))
+            .map(|(p, _)| p)
+            .ok_or_else(|| {
+                PresetError::Io(
+                    self.folder(Kind::Resin).join(id),
+                    std::io::ErrorKind::NotFound.into(),
+                )
+            })?;
+        std::fs::remove_file(&path).map_err(|e| PresetError::Io(path.clone(), e))?;
+        Ok(path)
+    }
+
+    /// Copies a resin preset file into the resin folder after checking that it reads. The file
+    /// keeps its name (and its comments). Returns the resin and where it went.
+    pub fn import_resin(&self, file: &Path) -> Result<(Resin, PathBuf), PresetError> {
+        if !file
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("toml"))
+        {
+            return Err(PresetError::NotToml(file.to_path_buf()));
+        }
+        let text =
+            std::fs::read_to_string(file).map_err(|e| PresetError::Io(file.to_path_buf(), e))?;
+        let stem = file
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let resin = parse_resin(&stem, &text)?;
+        if slug(&stem).is_empty() {
+            return Err(PresetError::EmptyName);
+        }
+        let dir = self.ensure_folder(Kind::Resin)?;
+        let dest = dir.join(format!("{}.toml", slug(&stem)));
+        if dest != file {
+            std::fs::write(&dest, &text).map_err(|e| PresetError::Io(dest.clone(), e))?;
+        }
+        Ok((resin, dest))
+    }
+
+    /// Changes whenever a file in the folder of `kind` is added, removed or edited.
+    /// Cheap enough to call every second or two.
+    pub fn signature(&self, kind: Kind) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut entries: Vec<(String, u64, Option<std::time::SystemTime>)> =
+            std::fs::read_dir(self.folder(kind))
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|e| {
+                    let m = e.metadata().ok()?;
+                    Some((
+                        e.file_name().to_string_lossy().into_owned(),
+                        m.len(),
+                        m.modified().ok(),
+                    ))
+                })
+                .collect();
+        entries.sort();
+        entries.hash(&mut h);
+        h.finish()
+    }
+
     /// Every preset of one kind that parses. Broken files are skipped.
     pub fn load_all<T: DeserializeOwned>(&self, kind: Kind) -> Vec<(String, T)> {
         self.list(kind)
@@ -352,6 +510,27 @@ impl UserPresets {
             .collect()
     }
 }
+
+/// Reads a personal resin file. `stem` is its file name without `.toml`.
+fn parse_resin(stem: &str, text: &str) -> Result<Resin, PresetError> {
+    let mut r: Resin = parse(&format!("{stem}.toml"), text)?;
+    if r.name.trim().is_empty() {
+        r.name = stem.to_string();
+    }
+    if r.brand.trim().is_empty() {
+        r.brand = "My".into();
+    }
+    if r.id.trim().is_empty() {
+        r.id = format!("my/{}", slug(stem));
+    }
+    if r.profiles.is_empty() {
+        return Err(PresetError::NoProfiles(r.title()));
+    }
+    Ok(r)
+}
+
+/// What the README in the personal resin folder says.
+pub const RESIN_README: &str = include_str!("resin-readme.txt");
 
 /// Built-in presets for one kind of settings, by name (for example `light`, `medium`, `heavy`).
 pub fn builtin_supports() -> [(&'static str, SupportSettings); 3] {
@@ -453,6 +632,69 @@ mod tests {
         let got = lib.resin("anycubic/abs-like-pro-2-grey").unwrap();
         assert_eq!(got.profiles[0].settings.exposure.exposure_s, 1.7);
         assert_eq!(lib.resins.iter().filter(|r| r.id == got.id).count(), 1);
+    }
+
+    #[test]
+    fn dropped_and_imported_resin_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let user = UserPresets::new(dir.path().join("presets"));
+        let folder = user.ensure_folder(Kind::Resin).unwrap();
+        assert!(folder.join("README.txt").exists());
+        // A minimal hand-written file dropped into the folder.
+        std::fs::write(
+            folder.join("Grey 30um.toml"),
+            "[[profiles]]\nprinter = \"elegoo/saturn-4-ultra-16k\"\nexposure_s = 1.6\n",
+        )
+        .unwrap();
+        std::fs::write(folder.join("broken.toml"), "brand = \n").unwrap();
+        std::fs::write(folder.join("empty.toml"), "name = \"Nothing\"\n").unwrap();
+        let (lib, problems) = Library::load_checked(Some(&user));
+        let r = lib.resin("my/grey-30um").expect("dropped file is loaded");
+        assert_eq!(r.brand, "My");
+        assert_eq!(r.name, "Grey 30um");
+        let p = r.profile_for("elegoo/saturn-4-ultra-16k").unwrap();
+        assert_eq!(p.settings.exposure.exposure_s, 1.6);
+        assert_eq!(
+            p.settings.exposure.layer_height_mm,
+            ExposureSettings::default().layer_height_mm
+        );
+        assert_eq!(problems.len(), 2, "{problems:?}");
+        assert!(problems.iter().any(|m| m.starts_with("broken.toml")));
+        assert!(problems.iter().any(|m| m.contains("no settings")));
+
+        // Import copies a file from elsewhere, keeps its text, refuses other formats.
+        let src = dir.path().join("Siraya Fast.toml");
+        std::fs::write(
+            &src,
+            "# shared by a friend\nid = \"siraya/fast-grey\"\nbrand = \"Siraya Tech\"\nname = \"Fast\"\n[[profiles]]\nprinter = \"elegoo/saturn-4-ultra-16k\"\n",
+        )
+        .unwrap();
+        let before = user.signature(Kind::Resin);
+        let (r, dest) = user.import_resin(&src).unwrap();
+        assert_eq!(r.id, "siraya/fast-grey");
+        assert_eq!(dest, folder.join("siraya-fast.toml"));
+        assert!(
+            std::fs::read_to_string(&dest)
+                .unwrap()
+                .starts_with("# shared by a friend")
+        );
+        assert_ne!(user.signature(Kind::Resin), before);
+        assert!(
+            Library::load(Some(&user))
+                .resin("siraya/fast-grey")
+                .is_some()
+        );
+        assert_eq!(
+            user.delete_resin("my/grey-30um").unwrap(),
+            folder.join("Grey 30um.toml")
+        );
+        assert!(Library::load(Some(&user)).resin("my/grey-30um").is_none());
+        let lyr = dir.path().join("x.lyr");
+        std::fs::write(&lyr, "x").unwrap();
+        assert!(matches!(
+            user.import_resin(&lyr),
+            Err(PresetError::NotToml(_))
+        ));
     }
 
     #[test]

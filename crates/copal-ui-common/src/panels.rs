@@ -64,6 +64,59 @@ pub fn tab_button(
     r
 }
 
+/// A folded tool window: a thin stripe with its name, like in IntelliJ. `vertical` turns the text
+/// for the left and right edges. Returns the click response.
+pub fn stripe_button(ui: &mut Ui, look: &Look, text: &str, vertical: bool) -> egui::Response {
+    let font = FontId::proportional(12.5);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_string(), font, Color32::PLACEHOLDER);
+    let gs = galley.size();
+    let size = if vertical {
+        vec2(gs.y + 10.0, gs.x + 18.0)
+    } else {
+        vec2(gs.x + 18.0, gs.y + 8.0)
+    };
+    let (rect, r) = ui.allocate_exact_size(size, Sense::click());
+    let p = &look.pal;
+    if r.hovered() {
+        ui.painter()
+            .rect_filled(rect, look.radius(Edge::Button), p.raised_hover);
+    }
+    let color = if r.hovered() { p.text } else { p.text_weak };
+    if vertical {
+        // Reads bottom to top, like IDE side stripes.
+        let pos = egui::pos2(rect.center().x - gs.y / 2.0, rect.center().y + gs.x / 2.0);
+        ui.painter().add(
+            egui::epaint::TextShape::new(pos, galley, color)
+                .with_angle(-std::f32::consts::FRAC_PI_2),
+        );
+    } else {
+        ui.painter().galley(rect.center() - gs / 2.0, galley, color);
+    }
+    r
+}
+
+/// Title row of an open tool window with a button that folds it away. Returns true when the
+/// button was clicked.
+pub fn window_header(ui: &mut Ui, look: &Look, title: &str, hotkey: &str) -> bool {
+    let mut close = false;
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(title.to_uppercase())
+                .small()
+                .color(look.pal.text_faint),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let r = ui
+                .add(egui::Button::new(RichText::new("—").color(look.pal.text_weak)).frame(false))
+                .on_hover_text(format!("Hide ({hotkey})"));
+            close = r.clicked();
+        });
+    });
+    close
+}
+
 /// One number field that changes a project setting. Dragging previews the value; the command
 /// runs when the drag ends or a typed value is confirmed, so undo gets one step.
 #[allow(clippy::too_many_arguments)]
@@ -317,43 +370,6 @@ impl Workspace {
         self.scene_list(ui, look);
     }
 
-    fn prepare_tools(&mut self, ui: &mut Ui, look: &Look, w: Option<f32>) {
-        let faint = |ui: &mut Ui, t: &str| {
-            ui.label(RichText::new(t).small().color(look.pal.text_faint));
-        };
-        widgets::section(ui, look, "Check");
-        faint(
-            ui,
-            "Red faces point down more than the overhang angle (Supports tab) and need supports.",
-        );
-        widgets::section(ui, look, "Supports");
-        ui.add_enabled_ui(false, |ui| {
-            widgets::button_sized(ui, look, ButtonKind::Primary, "Auto supports", w);
-            widgets::button_sized(ui, look, ButtonKind::Normal, "Add supports by hand", w);
-        });
-        faint(
-            ui,
-            "Coming in Copal 0.3. Set them up now in the Supports tab on the right.",
-        );
-        widgets::section(ui, look, "Hollow");
-        ui.add_enabled_ui(false, |ui| {
-            widgets::button_sized(
-                ui,
-                look,
-                ButtonKind::Normal,
-                "Hollow and add drain holes",
-                w,
-            );
-            widgets::button_sized(ui, look, ButtonKind::Normal, "Auto orientation", w);
-        });
-        faint(
-            ui,
-            "Coming in Copal 0.2. Wall thickness and holes are in the Hollow tab.",
-        );
-        widgets::section(ui, look, "Objects");
-        self.scene_list(ui, look);
-    }
-
     fn export_tools(&mut self, ui: &mut Ui, look: &Look, w: Option<f32>) {
         let doc = self.doc();
         let lib = library();
@@ -561,7 +577,12 @@ impl Workspace {
         kind_name: &str,
         builtin: &[&str],
     ) {
-        widgets::section(ui, look, "Presets");
+        let title = format!(
+            "{}{} presets",
+            kind_name[..1].to_uppercase(),
+            &kind_name[1..]
+        );
+        widgets::section(ui, look, &title);
         let saved = copal_core::user_presets()
             .map(|u| u.list(kind))
             .unwrap_or_default();
@@ -726,30 +747,7 @@ impl Workspace {
                 .color(look.pal.text_faint),
         );
         self.preset_row(ui, look, Kind::Exposure, "exposure", &[]);
-        widgets::section(ui, look, "My resin");
-        ui.label(
-            RichText::new("Saves all print settings as a resin for this printer. It shows up in the resin list.")
-                .small()
-                .color(look.pal.text_faint),
-        );
-        ui.horizontal(|ui| {
-            ui.add(
-                TextEdit::singleline(&mut self.preset_name)
-                    .hint_text("resin name")
-                    .desired_width(ui.available_width() - 70.0),
-            );
-            let ok = !self.preset_name.trim().is_empty();
-            ui.add_enabled_ui(ok, |ui| {
-                if widgets::button(ui, look, ButtonKind::Normal, "Save").clicked() {
-                    let name = std::mem::take(&mut self.preset_name);
-                    self.run(&format!("presets save resin {}", quote(name.trim())));
-                    self.run(&format!(
-                        "project.set_resin resin={}",
-                        quote(&format!("my/{}", copal_core::presets::slug(name.trim())))
-                    ));
-                }
-            });
-        });
+        self.my_resin_section(ui, look);
     }
 
     fn print_tab(&mut self, ui: &mut Ui, look: &Look) {

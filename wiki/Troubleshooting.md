@@ -1,5 +1,5 @@
 > [!NOTE]
-> 🚧 This page describes a planned feature. It arrives in **Copal 0.2**. Details may change.
+> 🚧 This page describes a planned feature. It arrives in **Copal 0.3**. Details may change.
 
 
 ## Copal does not start or the window is black

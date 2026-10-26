@@ -4,7 +4,10 @@
 | Ctrl while dragging | Snap to steps |
 | `Ctrl+D` | Duplicate |
 | `X` / `Delete` | Delete |
-| `Esc` | Deselect, or cancel a running export |
+| `Esc` | Deselect, leave the Select / Add tool, or cancel a running export |
+| `Delete` (Prepare) | Delete the selected supports |
+| `Shift`+click (Prepare, Select tool) | Add a support to the selection |
+| `Alt+1` / `Alt+2` / `Alt+3` | Show or hide tools / settings / console |
 | `F` / double-click | Frame the plate and models |
 | `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Undo / Redo |
 | `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Open / Save / Save as |

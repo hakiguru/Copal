@@ -20,6 +20,8 @@ pub struct DrawObject {
     pub model: Mat4,
     /// Linear RGB, 0..1.
     pub color: [f32; 3],
+    /// Color faces that need supports (models yes, supports no).
+    pub overhang: bool,
 }
 
 /// A vertex with a color, for the plate, grid, volume and markers.
@@ -289,7 +291,7 @@ impl Renderer {
                 frame.light.y,
                 frame.light.z,
             );
-            gl.uniform_1_f32(self.u_overhang.as_ref(), frame.overhang_cos.unwrap_or(-1.0));
+
             let oc = frame.overhang_color;
             gl.uniform_3_f32(self.u_overhang_color.as_ref(), oc[0], oc[1], oc[2]);
             for m in self.meshes.values_mut() {
@@ -330,6 +332,12 @@ impl Renderer {
                 let nm = Mat3::from_mat4(obj.model).inverse().transpose();
                 gl.uniform_matrix_4_f32_slice(self.u_mvp.as_ref(), false, &mvp.to_cols_array());
                 gl.uniform_matrix_3_f32_slice(self.u_normal.as_ref(), false, &nm.to_cols_array());
+                let cos = if obj.overhang {
+                    frame.overhang_cos.unwrap_or(-1.0)
+                } else {
+                    -1.0
+                };
+                gl.uniform_1_f32(self.u_overhang.as_ref(), cos);
                 gl.uniform_3_f32(
                     self.u_color.as_ref(),
                     obj.color[0],

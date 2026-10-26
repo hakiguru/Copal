@@ -57,6 +57,8 @@ impl eframe::App for CopalApp {
         let p = look.pal;
         let ws = &mut self.ws;
         ws.poll_export(ui.ctx());
+        ws.poll_prep_job(ui.ctx());
+        ws.poll_presets(ui.ctx());
         ws.dropped_files(ui);
         ws.hotkeys(ui);
         let title = ws.title();
@@ -65,7 +67,6 @@ impl eframe::App for CopalApp {
                 .send_viewport_cmd(ViewportCommand::Title(title.clone()));
             self.last_title = title;
         }
-        let panel_frame = |fill| Frame::new().fill(fill).inner_margin(Margin::same(12));
 
         // Top bar: wordmark, steps, printer and resin, file buttons.
         let top = Panel::top("top")
@@ -130,42 +131,7 @@ impl eframe::App for CopalApp {
             line,
         );
 
-        Panel::bottom("status")
-            .frame(
-                Frame::new()
-                    .fill(p.base)
-                    .inner_margin(Margin::symmetric(12, 4)),
-            )
-            .show(ui, |ui| ui.horizontal(|ui| ws.status_line(ui, look)));
-
-        let console_fill = if look.art() { p.panel } else { p.term_bg };
-        let console = Panel::bottom("console")
-            .resizable(true)
-            .default_size(160.0)
-            .min_size(48.0)
-            .max_size(600.0)
-            .frame(panel_frame(console_fill))
-            .show(ui, |ui| ws.console_panel(ui, look));
-
-        let left = Panel::left("tools")
-            .resizable(true)
-            .default_size(250.0)
-            .min_size(200.0)
-            .max_size(480.0)
-            .frame(panel_frame(p.panel))
-            .show(ui, |ui| {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| ws.tool_shelf(ui, look));
-            });
-
-        let right = Panel::right("settings")
-            .resizable(true)
-            .default_size(330.0)
-            .min_size(240.0)
-            .max_size(640.0)
-            .frame(panel_frame(p.panel))
-            .show(ui, |ui| ws.settings_panel(ui, look));
+        let windows = copal_ui_common::layout::side_windows(ui, ws, look);
 
         let center = CentralPanel::default()
             .frame(Frame::new().fill(p.void).inner_margin(Margin::same(4)))
@@ -173,11 +139,7 @@ impl eframe::App for CopalApp {
 
         // Outlines around the main areas.
         let painter = ui.painter();
-        for rect in [
-            left.response.rect,
-            right.response.rect,
-            console.response.rect,
-        ] {
+        for rect in windows {
             look.outline(painter, rect.shrink(2.0), Edge::Panel, State::Idle);
         }
         let stage = center.response.rect.shrink(2.0);

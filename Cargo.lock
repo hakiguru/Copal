@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "copal"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "copal-core",
  "copal-ui-common",
@@ -397,7 +397,7 @@ dependencies = [
 
 [[package]]
 name = "copal-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "copal-core",
@@ -410,10 +410,11 @@ dependencies = [
 
 [[package]]
 name = "copal-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "copal-mesh",
  "copal-presets",
+ "copal-supports",
  "glam",
  "serde",
  "serde_json",
@@ -425,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "copal-formats"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "copal-core",
  "copal-mesh",
@@ -439,7 +440,7 @@ dependencies = [
 
 [[package]]
 name = "copal-lite"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "copal-core",
  "copal-ui-common",
@@ -450,7 +451,7 @@ dependencies = [
 
 [[package]]
 name = "copal-mesh"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "glam",
  "quick-xml 0.42.0",
@@ -460,11 +461,11 @@ dependencies = [
 
 [[package]]
 name = "copal-net"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "copal-presets"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -475,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "copal-shell"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "copal-core",
  "copal-formats",
@@ -486,18 +487,27 @@ dependencies = [
 
 [[package]]
 name = "copal-slice"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "glam",
 ]
 
 [[package]]
 name = "copal-supports"
-version = "0.1.0"
+version = "0.2.0"
+dependencies = [
+ "copal-mesh",
+ "copal-presets",
+ "copal-slice",
+ "glam",
+ "rayon",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "copal-ui-common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "copal-core",
  "copal-formats",

@@ -65,42 +65,49 @@ Black-box study of LycheeSlicer and Chitubox, rules in `docs/RESEARCH.md`.
 - [x] Background export with progress and cancel
 - [x] `copal-shell`: one set of commands for the console and `copal-cli shell`
 - [x] CLI: import, export, history, presets, printers, resins, inspect
-- [ ] **Confirm image orientation** of `.goo` files against Lychee with the F test model,
-      then a test print on the Saturn 4 Ultra 16K
+- [x] **Confirm image orientation** of `.goo` files against Lychee with the F test model (0.2)
+- [ ] A test print on the Saturn 4 Ultra 16K
 - [ ] Benchmarks in CI
 
 **Done when:** a model sliced by Copal prints correctly on the Saturn 4 Ultra 16K.
 
 ---
 
-## 0.2 — Prepare: orientation, hollowing, checks
+## 0.2 — Supports, hollowing, drain holes (released)
 
-- [ ] Auto orientation: score rotations by overhang area, islands and peel area
-- [ ] Lay flat on a picked face
-- [ ] Island detection from the layers, shown in the 3D view and the layer preview
-- [ ] Hollowing 3D (voxel distance field + surface nets), wall thickness, precision
-- [ ] Drain holes: click to place, size and depth, real holes in the slices
-- [ ] Resin trap / suction cup check for hollow models
-- [ ] Exposure test generator + "pick the best chip" + save personal resin
-      (`docs/CALIBRATION.md`), in both apps and the CLI
-- [ ] `.ctb` writer + reader (unencrypted first)
-- [ ] English + Russian UI (`fluent`)
-- [ ] Guide: running Lite from a TTY with `cage`
+Supports moved ahead of orientation: the owner needs them to print a complex figure part.
+
+- [x] Auto supports: light / medium / heavy presets, settings from the Supports tab
+- [x] Modes: Auto (islands + overhangs) and Islands only
+- [x] The tilted XYZ cube holds (regression test), every island of the Armadillo test model supported
+- [x] Support geometry: tips, bodies, bends around the model, feet on the model, braces, raft
+- [x] Auto bracing (spanning tree of neighbours, zigzag braces)
+- [x] Manual supports: click to add one, it braces itself to its neighbours when the option is on
+- [x] Select, resize and delete supports; supports move with their model
+- [x] Island detection from the layers, shown in the 3D view
+- [x] Hollowing 3D (voxel distance field + surface nets), wall thickness, precision
+- [x] Drain holes: click to place, size and depth, real holes in the slices
+- [x] CLI and console: `supports.*`, `holes.*`, `object.hollow`, `supports`, `islands`, `hollow`
+- [x] Side panels fold away like IntelliJ tool windows (Alt+1/2/3)
+- [x] Personal resins: form in the Resin tab, import, resin folder watched while the app runs
+- [x] `.goo` image orientation confirmed against Lychee
 
 ---
 
-## 0.3 — Supports
+## 0.3 — Orientation, calibration, more prepare tools
 
-- [ ] Auto supports: light / medium / heavy, settings from the Supports tab
-- [ ] The tilted XYZ cube must hold on the first try (regression test)
-- [ ] Support geometry: tips, shafts, bases, braces, raft
-- [ ] Auto bracing and parenting
-- [ ] Manual supports: click to add one, it braces itself to its neighbours when the option is on
-- [ ] Select, edit and delete each support; selection filters (tips, bases, braces)
-- [ ] Supports move with their model when it is dragged on the plate
-- [ ] Island supports, proximity check
-- [ ] STL / OBJ export with supports
-- [ ] CLI: `supports.*` commands
+- [ ] Auto orientation: score rotations by overhang area, islands and peel area
+- [ ] Lay flat on a picked face
+- [ ] Islands in the layer preview
+- [ ] Resin trap / suction cup check for hollow models
+- [ ] Exposure test generator + "pick the best chip" + save personal resin
+      (`docs/CALIBRATION.md`), in both apps and the CLI
+- [ ] Selection filters (tips, bases, braces), drag a support tip to move it
+- [ ] Proximity check, STL / OBJ export with supports, tree supports
+- [ ] More printers from manufacturers' public specs
+- [ ] `.ctb` writer + reader (unencrypted first)
+- [ ] English + Russian UI (`fluent`)
+- [ ] Guide: running Lite from a TTY with `cage`
 
 **Done when:** auto supports print the research model set on the main printer without failures,
 and match or beat the recorded Lychee results.
