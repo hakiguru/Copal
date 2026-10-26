@@ -3,6 +3,29 @@
 All notable changes to Copal. Newest first.
 Each version here is also published as a GitHub Release.
 
+## 0.2.0
+
+Supports, hollowing and drain holes: Copal can now prepare complex models for printing.
+
+- Auto supports with Light, Medium and Heavy presets, and two modes: Auto (islands and overhangs) and Islands only
+- Supports have thin tips, bodies that bend around the model, feet on the plate or on the model, cross braces and a raft
+- Supports are braced to each other automatically
+- Add supports one by one with a click. New supports connect to their neighbours with braces when "Connect new supports with braces" is on
+- Select supports with a click (Shift+click adds), change their size, delete them with Delete
+- Supports move with their model. Rotating, scaling or mirroring the model removes them
+- Check islands: finds parts that would print in mid-air and marks them with red dots
+- Hollow models with a wall thickness you choose, and make them solid again
+- Drain holes: click on the model to add one, with your own diameter and depth. They are cut into the slices
+- Export stops with a clear message when a model floats above the plate without supports
+- Side panels fold away like tool windows in IntelliJ: click the — in a panel header, or press Alt+1 (tools), Alt+2 (settings), Alt+3 (console). A folded panel becomes a thin stripe; click it to bring the panel back
+- The console can be hidden from the status bar
+- Your own resins: fill in brand, name and color in the Resin tab and press "Save as my resin"
+- Import a resin preset (.toml) with "Import file…", by dropping it on the window, or with `presets import`
+- "Open folder" opens the folder with your resins. Any .toml file you put there shows up in the resin list in a few seconds, without a restart. Broken files are named in the console
+- The .goo image orientation is now confirmed: Copal and Lychee give the same layers for the same model
+- Console and copal-cli: `supports`, `islands`, `hollow`, `supports.*`, `holes.*`, `object.hollow`, `object.unhollow`, `presets import`, `presets folder`, `presets reload`
+- Project files keep supports, drain holes and the hollow inside (older projects still open)
+
 ## 0.1.0
 
 Copal slices! This is the first version that turns models into a printer file.
