@@ -164,8 +164,10 @@ impl Bvh {
                 continue;
             }
             if n.count > 0 {
-                for i in n.start as usize..(n.start + n.count) as usize {
-                    let [a, b, c] = self.tris[i];
+                let start = n.start as usize;
+                let leaf = &self.tris[start..start + n.count as usize];
+                for (k, &[a, b, c]) in leaf.iter().enumerate() {
+                    let i = start + k;
                     if let Some(t) = ray_triangle(origin, dir, a, b, c)
                         && t > min_t
                         && t < limit
@@ -240,8 +242,8 @@ impl Bvh {
                 continue;
             }
             if n.count > 0 {
-                for i in n.start as usize..(n.start + n.count) as usize {
-                    let [a, b, c] = self.tris[i];
+                let start = n.start as usize;
+                for &[a, b, c] in &self.tris[start..start + n.count as usize] {
                     let q = closest_on_triangle(p, a, b, c);
                     let dd = (q - p).length_squared();
                     if dd < r2 {
