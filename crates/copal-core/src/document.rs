@@ -1,6 +1,6 @@
 //! The open project: settings and the objects on the build plate.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use copal_mesh::{Aabb, Mesh};
 use copal_presets::{HollowSettings, LayoutSettings, PrintSettings, SupportSettings};
@@ -95,14 +95,71 @@ impl SceneObject {
     }
 
     /// Bounding box of the mesh after the object's transform.
+    ///
+    /// Finding it walks every vertex, and the apps ask many times per frame, so the box for a
+    /// rotation and scale is remembered. Moving an object only shifts its box.
     pub fn world_bounds(&self) -> Option<Aabb> {
-        let m = self.transform.matrix();
-        let mut points = self.mesh.positions.iter().map(|p| m.transform_point3(*p));
-        let first = points.next()?;
-        let (min, max) = points.fold((first, first), |(lo, hi), p| (lo.min(p), hi.max(p)));
-        Some(Aabb { min, max })
+        let first = *self.mesh.positions.first()?;
+        let t = &self.transform;
+        let key: BoundsKey = (
+            Arc::as_ptr(&self.mesh) as usize,
+            self.mesh.positions.len(),
+            first.to_array().map(f32::to_bits),
+            [
+                t.rotation_deg.x.to_bits(),
+                t.rotation_deg.y.to_bits(),
+                t.rotation_deg.z.to_bits(),
+                t.scale.x.to_bits(),
+                t.scale.y.to_bits(),
+                t.scale.z.to_bits(),
+            ],
+        );
+        let known = BOUNDS.lock().ok().and_then(|cache| {
+            cache
+                .iter()
+                .find(|(k, _)| *k == key)
+                .map(|(_, bounds)| *bounds)
+        });
+        let still = match known {
+            Some(bounds) => bounds,
+            None => {
+                let m = Transform {
+                    translation: Vec3::ZERO,
+                    ..*t
+                }
+                .matrix();
+                let (min, max) = self
+                    .mesh
+                    .positions
+                    .iter()
+                    .map(|p| m.transform_point3(*p))
+                    .fold(
+                        (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+                        |(lo, hi), p| (lo.min(p), hi.max(p)),
+                    );
+                let bounds = Aabb { min, max };
+                if let Ok(mut cache) = BOUNDS.lock() {
+                    if cache.len() >= BOUNDS_KEPT {
+                        cache.remove(0);
+                    }
+                    cache.push((key, bounds));
+                }
+                bounds
+            }
+        };
+        Some(Aabb {
+            min: still.min + t.translation,
+            max: still.max + t.translation,
+        })
     }
 }
+
+/// A mesh (address, vertex count, first vertex) with a rotation and scale.
+type BoundsKey = (usize, usize, [u32; 3], [u32; 6]);
+
+/// Boxes of meshes at the origin for the rotations and scales asked for lately.
+static BOUNDS: Mutex<Vec<(BoundsKey, Aabb)>> = Mutex::new(Vec::new());
+const BOUNDS_KEPT: usize = 256;
 
 /// Settings stored in the project. Each part can be saved and loaded as a preset.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]

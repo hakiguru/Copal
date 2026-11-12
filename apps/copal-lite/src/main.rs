@@ -88,7 +88,7 @@ impl eframe::App for LiteApp {
                             ws.redo();
                         }
                         ui.separator();
-                        if ui.button("Arrange all").clicked() {
+                        if ui.button("Arrange all   Shift+A").clicked() {
                             ws.run("object.arrange");
                         }
                         if ui.button("Preferences…   Ctrl+,").clicked() {
@@ -101,8 +101,52 @@ impl eframe::App for LiteApp {
                         ui.checkbox(&mut panels.settings, "Settings   Alt+2");
                         ui.checkbox(&mut panels.console, "Console   Alt+3");
                         ws.set_panels(panels);
+                        ui.separator();
+                        for (name, view) in [
+                            ("Iso view   4", "iso"),
+                            ("Top view   5", "top"),
+                            ("Front view   6", "front"),
+                            ("Side view   7", "side"),
+                            ("Fit everything   F", "fit"),
+                        ] {
+                            if ui.button(name).clicked() {
+                                ws.run_quiet(&format!("view {view}"));
+                            }
+                        }
+                    });
+                    ui.menu_button("Prepare", |ui| {
+                        if ui.button("Prepare for printing   Ctrl+P").clicked() {
+                            ws.step = Step::Prepare;
+                            ws.prepare_for_printing(false);
+                        }
+                        if ui.button("Auto orient   Ctrl+T").clicked() {
+                            ws.auto_orient(false);
+                        }
+                        ui.separator();
+                        if ui.button("Auto supports   Ctrl+U").clicked() {
+                            ws.step = Step::Prepare;
+                            ws.auto_supports(false);
+                        }
+                        if ui.button("Remove supports   Ctrl+Shift+U").clicked() {
+                            ws.remove_supports();
+                        }
+                        if ui.button("Check islands   I").clicked() {
+                            ws.step = Step::Prepare;
+                            ws.check_islands();
+                        }
+                        ui.separator();
+                        if ui.button("Hollow   Ctrl+H").clicked() {
+                            ws.step = Step::Prepare;
+                            ws.hollow_selected(false);
+                        }
+                        if ui.button("Drain holes   Ctrl+J").clicked() {
+                            ws.auto_holes();
+                        }
                     });
                     ui.menu_button("Help", |ui| {
+                        if ui.button("Keyboard shortcuts   F1").clicked() {
+                            ws.show_hotkeys = true;
+                        }
                         if ui.button("Console commands").clicked() {
                             ws.run("help");
                         }
@@ -130,6 +174,7 @@ impl eframe::App for LiteApp {
         ws.dialogs(ui.ctx(), look);
         ws.history_window(ui.ctx(), look);
         ws.settings_window(ui.ctx(), look);
+        ws.hotkeys_window(ui.ctx(), look);
     }
 }
 

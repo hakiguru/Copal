@@ -1,7 +1,7 @@
 //! Islands: parts of a layer that are not connected to anything in the layer below. Each one
 //! would print in mid-air and needs a support.
 
-use copal_mesh::bvh::Bvh;
+use copal_mesh::bvh::{Bvh, Hit};
 use copal_slice::{Raster, Slicer};
 use glam::{Vec2, Vec3};
 use rayon::prelude::*;
@@ -25,6 +25,24 @@ pub struct Island {
 /// `layer` is the step between test layers, `pixel` the size of test pixels, `spacing` the
 /// distance between contact points on big islands.
 pub fn find_islands(bvh: &Bvh, layer: f32, pixel: f32, spacing: f32) -> Vec<Island> {
+    let probe = |o: Vec3, d: Vec3, t0: f32, t1: f32| bvh.raycast(o, d, t0, t1);
+    find_islands_in(bvh, &[], &probe, layer, pixel, spacing)
+}
+
+/// A ray cast against everything solid: origin, direction, nearest and farthest distance.
+pub type Probe<'a> = dyn Fn(Vec3, Vec3, f32, f32) -> Option<Hit> + Sync + 'a;
+
+/// Like [`find_islands`], for a model with a hollow: `cuts` are the triangles of the hollow
+/// (inside out, world space), and `probe` casts rays against the model and the hollow's wall.
+/// Islands inside the hollow are found too.
+pub fn find_islands_in(
+    bvh: &Bvh,
+    cuts: &[[Vec3; 3]],
+    probe: &Probe,
+    layer: f32,
+    pixel: f32,
+    spacing: f32,
+) -> Vec<Island> {
     let Some((lo, hi)) = bvh.bounds() else {
         return Vec::new();
     };
@@ -39,7 +57,8 @@ pub fn find_islands(bvh: &Bvh, layer: f32, pixel: f32, spacing: f32) -> Vec<Isla
     let w = (size.x / pixel).ceil() as u32 + 6;
     let h = (size.y / pixel).ceil() as u32 + 6;
     let raster = Raster::new([w, h], [w as f32 * pixel, h as f32 * pixel]);
-    let slicer = Slicer::new(tris, raster, layer, 1);
+    let cuts: Vec<[Vec3; 3]> = cuts.iter().map(|t| t.map(|v| v + shift)).collect();
+    let slicer = Slicer::with_cuts(tris, cuts, Vec::new(), raster, layer, 1);
     let layers = slicer.layer_count();
     let (wu, hu) = (w as usize, h as usize);
     // Pixel (col, row) back to world XY.
@@ -105,7 +124,7 @@ pub fn find_islands(bvh: &Bvh, layer: f32, pixel: f32, spacing: f32) -> Vec<Isla
                     continue;
                 }
                 out.push(island_of(
-                    bvh, &pixels, wu, z, layer, pixel, step, &to_world,
+                    probe, &pixels, wu, z, layer, pixel, step, &to_world,
                 ));
             }
             prev = cur;
@@ -118,7 +137,7 @@ pub fn find_islands(bvh: &Bvh, layer: f32, pixel: f32, spacing: f32) -> Vec<Isla
 
 #[allow(clippy::too_many_arguments)]
 fn island_of(
-    bvh: &Bvh,
+    solid: &Probe,
     pixels: &[usize],
     wu: usize,
     z: f32,
@@ -148,7 +167,7 @@ fn island_of(
     let probe = |c: usize, r: usize| -> Option<(Vec3, Vec3)> {
         let xy = to_world(c, r);
         let origin = xy.extend(z - layer * 2.0 - 0.01);
-        let hit = bvh.raycast(origin, Vec3::Z, 0.0, layer * 8.0 + 0.2)?;
+        let hit = solid(origin, Vec3::Z, 0.0, layer * 8.0 + 0.2)?;
         (hit.normal.z < 0.05).then_some((hit.point, hit.normal))
     };
     // The middle: the first pixel near the centre where the ray finds the bottom surface.

@@ -282,10 +282,14 @@ impl Workspace {
         {
             self.open_dialog(Purpose::ImportModel);
         }
-        if widgets::button_sized(ui, look, ButtonKind::Normal, "Add test cube", w).clicked() {
+        if widgets::button_sized(ui, look, ButtonKind::Normal, "Add test cube", w)
+            .on_hover_text("A 20 mm cube, handy for a first test print")
+            .clicked()
+        {
             self.run("object.add_cube size=20");
         }
 
+        // The handles first, then what they can't do, in rows of equal buttons.
         widgets::section(ui, look, "Transform");
         ui.horizontal_wrapped(|ui| {
             for (mode, name, key) in [
@@ -304,68 +308,116 @@ impl Workspace {
             }
         });
         ui.label(
-            RichText::new("Drag a model to move it on the plate.")
+            RichText::new("Drag a model to move it on the plate. Arrow keys nudge it.")
                 .small()
                 .color(look.pal.text_faint),
         );
         let sel = self.selected;
-        ui.add_enabled_ui(sel.is_some(), |ui| {
-            let id = sel.map(|i| i.0).unwrap_or(0);
-            ui.horizontal_wrapped(|ui| {
-                for (axis, name) in ["x", "y", "z"].iter().zip(["Mirror X", "Mirror Y", "Mirror Z"]) {
-                    if widgets::button(ui, look, ButtonKind::Normal, name).clicked() {
-                        self.run(&format!("object.mirror id={id} axis={axis}"));
-                    }
-                }
-            });
-            ui.horizontal_wrapped(|ui| {
-                if widgets::button(ui, look, ButtonKind::Normal, "Drop to plate").clicked() {
-                    self.run(&format!("object.drop id={id}"));
-                }
-                if widgets::button(ui, look, ButtonKind::Normal, "Reset rotation").clicked()
-                    && let Some(o) = self.doc().object(ObjectId(id))
-                {
-                    let t = o.transform;
-                    self.run(&format!(
-                        "object.set_transform id={id} tx={} ty={} tz={} rx=0 ry=0 rz=0 sx={} sy={} sz={}",
-                        t.translation.x, t.translation.y, t.translation.z, t.scale.x, t.scale.y, t.scale.z
-                    ));
-                    self.run(&format!("object.drop id={id}"));
-                }
-            });
-            ui.horizontal_wrapped(|ui| {
-                if widgets::button(ui, look, ButtonKind::Normal, "Duplicate")
-                    .on_hover_text("Ctrl+D")
-                    .clicked()
-                {
-                    self.run(&format!("object.duplicate id={id}"));
-                }
-                if widgets::button(ui, look, ButtonKind::Normal, "Delete")
-                    .on_hover_text("Delete or X")
-                    .clicked()
-                {
-                    self.run(&format!("object.remove id={id}"));
-                }
-            });
-        });
+        let on = sel.is_some();
+        let id = sel.map(|i| i.0).unwrap_or(0);
+        match widgets::button_row(
+            ui,
+            look,
+            &[
+                ("On plate", "P. Put the model down on the build plate", on),
+                ("Center", "C. Move the model to the middle of the plate", on),
+            ],
+        ) {
+            Some(0) => self.run(&format!("object.drop id={id}")),
+            Some(_) => self.run(&format!("object.center id={id}")),
+            None => {}
+        }
+        let busy = self.job_running();
+        if widgets::button_row(
+            ui,
+            look,
+            &[(
+                "Auto orient",
+                "Ctrl+T. Turn the model the best way up for printing: small layers that grow \
+                 slowly and few overhangs. More choices in Prepare.",
+                !busy && !self.doc().objects().is_empty(),
+            )],
+        )
+        .is_some()
+        {
+            self.auto_orient(false);
+        }
+        match widgets::button_row(
+            ui,
+            look,
+            &[
+                (
+                    "Reset rotation",
+                    "Ctrl+R. Turn the model back to how it was imported",
+                    on,
+                ),
+                ("Reset all", "Rotation and size as imported", on),
+            ],
+        ) {
+            Some(0) => self.run(&format!("object.reset id={id}")),
+            Some(_) => self.run(&format!("object.reset id={id} what=all")),
+            None => {}
+        }
+        if let Some(i) = widgets::button_row(
+            ui,
+            look,
+            &[
+                ("Mirror X", "Alt+X", on),
+                ("Mirror Y", "Alt+Y", on),
+                ("Mirror Z", "Alt+Z", on),
+            ],
+        ) {
+            let axis = ["x", "y", "z"][i];
+            self.run(&format!("object.mirror id={id} axis={axis}"));
+        }
+        match widgets::button_row(
+            ui,
+            look,
+            &[
+                (
+                    "Duplicate",
+                    "Ctrl+D. A copy on a free place of the plate",
+                    on,
+                ),
+                ("Delete", "Delete or X", on),
+            ],
+        ) {
+            Some(0) => self.run(&format!("object.duplicate id={id}")),
+            Some(_) => self.run(&format!("object.remove id={id}")),
+            None => {}
+        }
+
         widgets::section(ui, look, "Plate");
-        ui.horizontal_wrapped(|ui| {
-            ui.add_enabled_ui(!self.doc().objects().is_empty(), |ui| {
-                if widgets::button(ui, look, ButtonKind::Normal, "Arrange all").clicked() {
-                    self.run("object.arrange");
-                }
-            });
-            ui.add_enabled_ui(self.session().history.can_undo(), |ui| {
-                if widgets::button(ui, look, ButtonKind::Normal, "Undo").clicked() {
-                    self.undo();
-                }
-            });
-            ui.add_enabled_ui(self.session().history.can_redo(), |ui| {
-                if widgets::button(ui, look, ButtonKind::Normal, "Redo").clicked() {
-                    self.redo();
-                }
-            });
-        });
+        let any = !self.doc().objects().is_empty();
+        match widgets::button_row(
+            ui,
+            look,
+            &[
+                (
+                    "Arrange all",
+                    "Shift+A. Place every model in neat rows",
+                    any,
+                ),
+                ("Undo", "Ctrl+Z", self.session().history.can_undo()),
+                ("Redo", "Ctrl+Shift+Z", self.session().history.can_redo()),
+            ],
+        ) {
+            Some(0) => self.run("object.arrange"),
+            Some(1) => self.undo(),
+            Some(_) => self.redo(),
+            None => {}
+        }
+        let outside = self.outside_plate();
+        if !outside.is_empty() {
+            ui.label(
+                RichText::new(format!(
+                    "Outside the build volume: {}. Arrange, move or scale them before export.",
+                    outside.join(", ")
+                ))
+                .small()
+                .color(look.pal.error),
+            );
+        }
         widgets::section(ui, look, "Objects");
         self.scene_list(ui, look);
     }
@@ -888,6 +940,7 @@ impl Workspace {
                 ui.label(RichText::new(line).small().color(look.pal.text_weak));
             }
         }
+        self.my_printer_section(ui, look);
     }
 
     fn layout_tab(&mut self, ui: &mut Ui, look: &Look) {
@@ -988,7 +1041,7 @@ impl Workspace {
     fn supports_tab(&mut self, ui: &mut Ui, look: &Look) {
         let s = self.doc().settings.supports;
         ui.label(
-            RichText::new("Used by automatic and manual supports (Copal 0.3). The overhang angle already colors faces in Prepare.")
+            RichText::new("Used by automatic and manual supports. The overhang angle also colors the faces that need them.")
                 .small()
                 .color(look.pal.text_faint),
         );
@@ -1153,8 +1206,8 @@ impl Workspace {
             "supports",
             "auto_parent",
             s.auto_parent,
-            "Start short supports on others",
-            "Saves material and raft space",
+            "Let close supports share a trunk",
+            "A support next to another leans over and joins it: fewer feet, a smaller raft",
         );
         check(
             self,
@@ -1224,21 +1277,12 @@ impl Workspace {
         let h = self.doc().settings.hollow;
         ui.label(
             RichText::new(
-                "Hollowing arrives in Copal 0.2; these settings are kept with the project.",
+                "Used by Hollow and the drain holes in the Prepare step. Kept with the project.",
             )
             .small()
             .color(look.pal.text_faint),
         );
         widgets::section(ui, look, "Walls");
-        check(
-            self,
-            ui,
-            "hollow",
-            "enabled",
-            h.enabled,
-            "Hollow models when slicing",
-            "Saves resin on big models",
-        );
         egui::Grid::new("hollow")
             .num_columns(2)
             .spacing([8.0, 6.0])
@@ -1272,6 +1316,24 @@ impl Workspace {
                     0.01,
                     0.05..=5.0,
                     " mm",
+                );
+                ui.end_row();
+                row_label(
+                    ui,
+                    look,
+                    "Fill pockets under",
+                    "Closed hollows smaller than this are filled again: they would only trap resin. 0 keeps them all.",
+                );
+                num(
+                    self,
+                    ui,
+                    "hollow",
+                    "min_pocket_mm3",
+                    None,
+                    h.min_pocket_mm3 as f64,
+                    1.0,
+                    0.0..=5000.0,
+                    " mm³",
                 );
                 ui.end_row();
             });
@@ -1552,6 +1614,9 @@ impl Workspace {
         if ui.rect_contains_pointer(ui.max_rect()) && ui.input(|i| i.pointer.primary_clicked()) {
             r.request_focus();
         }
+        if std::mem::take(&mut self.focus_console) {
+            r.request_focus();
+        }
         self.console_focused = r.has_focus();
         if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
             let line = std::mem::take(&mut self.console_input);
@@ -1596,6 +1661,8 @@ impl Workspace {
                     .map(|c| c.to_string()),
             );
             options.sort();
+        } else {
+            options.extend(crate::workspace::app_arguments(&input));
         }
         match options.len() {
             0 => {}
@@ -1645,6 +1712,13 @@ impl Workspace {
                     let (lo, hi) = copal_core::settings::GIZMO_SIZES;
                     ui.add(egui::Slider::new(&mut s.gizmo_size, lo..=hi).step_by(0.1));
                 });
+                widgets::section(ui, look, "Keyboard");
+                if widgets::button(ui, look, ButtonKind::Normal, "Show shortcuts")
+                    .on_hover_text("Every key Copal listens to (F1)")
+                    .clicked()
+                {
+                    self.show_hotkeys = true;
+                }
                 ui.add_space(8.0);
                 let where_ = Settings::path().map(|p| p.display().to_string()).unwrap_or_default();
                 ui.label(RichText::new(format!("Saved to {where_}")).small().color(look.pal.text_faint));

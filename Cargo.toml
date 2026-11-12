@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "apps/*"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
@@ -56,6 +56,10 @@ opt-level = 3
 [profile.dev.package.copal-formats]
 opt-level = 3
 [profile.dev.package.copal-mesh]
+opt-level = 2
+[profile.dev.package.copal-supports]
+opt-level = 3
+[profile.dev.package.copal-core]
 opt-level = 2
 # Dependencies (image, png, zip, egui, …) are built optimized too; our own crates stay quick to build.
 [profile.dev.package."*"]

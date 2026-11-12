@@ -56,6 +56,12 @@ static REGISTRY: &[CommandInfo] = &[
         build: crate::prepare::build_holes_add,
     },
     CommandInfo {
+        name: "holes.auto",
+        summary: "Add drain holes at the lowest points of a hollow object: one lets air in, the other lets resin out.",
+        usage: "holes.auto id=<id> [count=<n>] [diameter=<mm>]",
+        build: crate::prepare::build_holes_auto,
+    },
+    CommandInfo {
         name: "holes.clear",
         summary: "Remove all drain holes of an object.",
         usage: "holes.clear id=<id>",
@@ -93,6 +99,17 @@ static REGISTRY: &[CommandInfo] = &[
             a.only(&["spacing"])?;
             Ok(Box::new(Arrange {
                 spacing: a.opt("spacing")?,
+            }))
+        },
+    },
+    CommandInfo {
+        name: "object.center",
+        summary: "Move an object to the middle of the plate. Its height stays.",
+        usage: "object.center id=<id>",
+        build: |a| {
+            a.only(&["id"])?;
+            Ok(Box::new(CenterObject {
+                id: ObjectId(a.get("id")?),
             }))
         },
     },
@@ -174,6 +191,18 @@ static REGISTRY: &[CommandInfo] = &[
         },
     },
     CommandInfo {
+        name: "object.orient",
+        summary: "Turn an object the best way up for printing: small layers that grow slowly, few overhangs. Removes its supports.",
+        usage: "object.orient id=<id> [goal=balanced|strong|supports|fast]",
+        build: crate::prepare::build_orient,
+    },
+    CommandInfo {
+        name: "object.prepare",
+        summary: "Make an object ready to print in one step: orientation, hollow, drain holes, supports.",
+        usage: "object.prepare id=<id> [orient=balanced|strong|supports|fast|off] [hollow=true|false] [holes=true|false] [supports=auto|islands|off]",
+        build: crate::prepare::build_prepare,
+    },
+    CommandInfo {
         name: "object.remove",
         summary: "Delete an object.",
         usage: "object.remove id=<id>",
@@ -202,6 +231,32 @@ static REGISTRY: &[CommandInfo] = &[
             Ok(Box::new(RenameObject {
                 id: ObjectId(a.get("id")?),
                 name: a.str("name")?.to_string(),
+            }))
+        },
+    },
+    CommandInfo {
+        name: "object.reset",
+        summary: "Put the rotation, the scale or both back to how the model was imported.",
+        usage: "object.reset id=<id> [what=rotation|scale|all]",
+        build: |a| {
+            a.only(&["id", "what"])?;
+            let (rotation, scale) = match a.opt_str("what").unwrap_or("rotation") {
+                "rotation" => (true, false),
+                "scale" => (false, true),
+                "all" => (true, true),
+                other => {
+                    return Err(CommandError::BadValue {
+                        command: "object.reset".into(),
+                        arg: "what".into(),
+                        value: other.into(),
+                        reason: "expected rotation, scale or all".into(),
+                    });
+                }
+            };
+            Ok(Box::new(ResetObject {
+                id: ObjectId(a.get("id")?),
+                rotation,
+                scale,
             }))
         },
     },
@@ -641,6 +696,90 @@ impl Command for SetTransform {
             None => {
                 drop_stale_supports(o, &old);
             }
+        }
+        Ok(Box::new(SetTransform {
+            id: self.id,
+            transform: old,
+            supports: Some(old_supports),
+        }))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CenterObject {
+    id: ObjectId,
+}
+
+impl Command for CenterObject {
+    fn name(&self) -> &'static str {
+        "object.center"
+    }
+
+    fn to_text(&self) -> Option<String> {
+        Some(format!("object.center id={}", self.id))
+    }
+
+    fn apply(&self, doc: &mut Document) -> Result<Box<dyn Command>, CommandError> {
+        let o = doc
+            .object_mut(self.id)
+            .ok_or(CommandError::NoSuchObject(self.id))?;
+        let old = o.transform;
+        if let Some(b) = o.world_bounds() {
+            let c = b.center();
+            o.transform.translation.x -= c.x;
+            o.transform.translation.y -= c.y;
+        }
+        // Only the position changes, so the supports stay.
+        Ok(Box::new(SetTransform {
+            id: self.id,
+            transform: old,
+            supports: None,
+        }))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ResetObject {
+    id: ObjectId,
+    rotation: bool,
+    scale: bool,
+}
+
+impl Command for ResetObject {
+    fn name(&self) -> &'static str {
+        "object.reset"
+    }
+
+    fn to_text(&self) -> Option<String> {
+        let what = match (self.rotation, self.scale) {
+            (true, true) => " what=all",
+            (false, true) => " what=scale",
+            _ => "",
+        };
+        Some(format!("object.reset id={}{what}", self.id))
+    }
+
+    fn apply(&self, doc: &mut Document) -> Result<Box<dyn Command>, CommandError> {
+        let keep_on_plate = doc.settings.layout.keep_on_plate;
+        let o = doc
+            .object_mut(self.id)
+            .ok_or(CommandError::NoSuchObject(self.id))?;
+        let old = o.transform;
+        let old_supports = o.prep.supports.clone();
+        let was_on_plate = o.world_bounds().is_some_and(|b| b.min.z.abs() < 1e-3);
+        if self.rotation {
+            o.transform.rotation_deg = Vec3::ZERO;
+        }
+        if self.scale {
+            // A mirrored model stays mirrored.
+            o.transform.scale = o.transform.scale.signum();
+        }
+        let lost_supports = drop_stale_supports(o, &old);
+        if keep_on_plate
+            && (was_on_plate || lost_supports)
+            && let Some(b) = o.world_bounds()
+        {
+            o.transform.translation.z -= b.min.z;
         }
         Ok(Box::new(SetTransform {
             id: self.id,

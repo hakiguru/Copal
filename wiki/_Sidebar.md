@@ -9,7 +9,8 @@
 **User guide**
 - [[Interface overview|Interface-Overview]]
 - [[Layout: place, rotate, scale|Layout]]
-- [[Prepare: checks, supports, hollowing|Prepare]]
+- [[Prepare: ready in one click|Prepare]]
+- [[Auto orientation|Auto-Orientation]]
 - [[Supports]]
 - [[Hollowing & drain holes|Hollowing-and-Drain-Holes]]
 - [[Editing models|Editing]]

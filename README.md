@@ -17,9 +17,10 @@
 ---
 
 > [!NOTE]
-> **Copal 0.1 slices.** Import STL / OBJ / 3MF, place models with handles or by dragging them over the
-> plate, set exposure and lift, look through the layers and export Elegoo `.goo` files. Supports and
-> hollowing come in 0.2 → 0.3. It has not made a real print yet, so start with a small test part.
+> **Copal 0.3 prepares a model in one click.** Import STL / OBJ / 3MF, press **Prepare for
+> printing**: the model is turned the best way up, hollowed, given drain holes and supports, and
+> checked. Then look through the layers and export an Elegoo `.goo` file. Copal has not been
+> confirmed by a real print yet, so start with a small test part.
 
 ## What is Copal?
 
@@ -68,7 +69,14 @@ All three share one engine, so a project made in one opens in the others.
 
 ## Features
 
-**Works now (0.1)**
+**Works now (0.3)**
+- **Prepare for printing** in one click: orientation, hollow, drain holes, supports, and a check
+- Auto orientation with four goals: balanced, smallest layers, fewest overhangs, lowest print
+- Auto supports (light / medium / heavy) tied into a lattice of braces, with a raft; supports
+  placed by hand join the ones already there; every support can be selected, resized and deleted
+- Island check, also inside hollows and around drain holes
+- Hollowing with a wall thickness you choose; drain holes placed for you or by click, with a
+  check that they really open the hollow
 - Import STL, OBJ and 3MF — button, drag and drop, or terminal
 - Move, rotate and scale with handles (size adjustable), or drag a model over the plate with the mouse
 - Mirror, duplicate, drop to plate, arrange all, exact size in millimetres, snapping with Ctrl
@@ -78,14 +86,14 @@ All three share one engine, so a project made in one opens in the others.
 - Layer-by-layer preview, print time and resin estimate
 - Print history: every export with a picture, settings, rating, notes and a copy of the project
 - Your own presets for exposure, motion, supports, hollowing and layout; save your own resin
-- Everything also from the terminal: `copal-cli` and an interactive shell
+- Your own printers and resins as small text files
+- Everything also from the terminal: `copal-cli` and an interactive shell, with a `render`
+  command that saves a picture of the plate
 
 **Coming next**
-- 0.2: auto orientation, hollowing with drain holes, island check, exposure calibration, `.ctb`
-- 0.3: automatic supports (light / medium / heavy), manual supports that brace themselves, editing
-  every support
-- Later: Blender-style edit mode, booleans and cutting, many more printers and formats, GPU
-  slicing, sending to the printer over Wi-Fi
+- Exposure calibration, `.ctb`, more printers
+- Later: Blender-style edit mode, booleans and cutting, many more formats, GPU slicing, sending
+  to the printer over Wi-Fi
 
 ## Platforms
 
@@ -109,10 +117,12 @@ The user guide lives in the [wiki](https://github.com/hakiguru/Copal/wiki).
 
 - [x] **0.0** Foundation: command system with undo/redo, project files, CLI, preview apps
 - [x] **0.1** It slices: import, 3D view with handles, settings and presets, `.goo` export, print history
-- [ ] **0.2** Prepare: auto orientation, hollowing and drain holes, islands, calibration, `.ctb`
-- [ ] **0.3** Automatic and manual supports with bracing, editing every support, rafts
+- [x] **0.2** Supports with braces and a raft, hollowing, drain holes, islands, your own resins
+- [x] **0.3** One-click prepare, auto orientation, supports as a lattice, checked drain holes,
+      hotkeys, your own printers
+- [ ] **Next** Calibration, `.ctb`, more printers
 - [ ] **0.4** Polish of the full app: materials, history panel, macros, autosave
-- [ ] **0.5** Mesh repair, multi-plate, one-click prepare, measuring
+- [ ] **0.5** Mesh repair, multi-plate, measuring
 - [ ] **0.6** Blender-style editing, booleans, cut with keys
 - [ ] **0.7** Large printer and resin database, all major file formats
 - [ ] **0.8** GPU slicing, sending to printer over Wi-Fi, advanced calibration
@@ -200,7 +210,9 @@ anything you like, just keep the copyright notice.
 С версии 0.1 Copal нарезает модели в `.goo` для Elegoo: импорт STL / OBJ / 3MF, гизмо для
 перемещения, поворота и масштаба (размер гизмо настраивается), перетаскивание модели по столу,
 настройки смолы и печати с сохранением своих пресетов, предпросмотр слоёв и история печати с копией
-проекта. Дальше: автоориентация и опустошение (0.2), автоподдержки и ручные поддержки (0.3).
+проекта. В 0.2 появились поддержки, опустошение и дренажные отверстия. В 0.3 модель готовится к
+печати одной кнопкой: автоориентация, полость с отверстиями, поддержки, связанные в решётку, и
+проверка результата.
 План — в [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 </details>

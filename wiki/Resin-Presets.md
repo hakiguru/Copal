@@ -15,6 +15,7 @@ field with **Save**, and **Delete…**.
 | `supports` | Supports | every support setting (built in: light, medium, heavy) |
 | `hollow` | Hollow | wall thickness, precision, drain holes |
 | `resin` | Resin → My resin | all print settings as a resin for this printer; it appears in the resin list (see below) |
+| `printer` | Print → My printer | the printer itself: screen, build height, file format (0.3, see [[Add a printer or resin|Adding-Printers-and-Resins]]) |
 
 From the terminal: `copal-cli presets save part.copal exposure "grey 21C"`,
 `copal-cli presets load part.copal supports heavy`, or `presets …` in the console.

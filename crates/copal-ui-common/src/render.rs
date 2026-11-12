@@ -76,17 +76,22 @@ pub struct Renderer {
     u_light: Option<glow::UniformLocation>,
     u_overhang: Option<glow::UniformLocation>,
     u_overhang_color: Option<glow::UniformLocation>,
+    u_height: Option<glow::UniformLocation>,
     u_color_mvp: Option<glow::UniformLocation>,
 }
 
 const MESH_VS: &str = r#"
 uniform mat4 u_mvp;
 uniform mat3 u_normal;
+uniform vec4 u_height;
 IN vec3 a_pos;
 IN vec4 a_normal;
 OUT vec3 v_normal;
+OUT float v_height;
 void main() {
     v_normal = u_normal * a_normal.xyz;
+    // Height above the plate: the third row of the model matrix.
+    v_height = dot(u_height, vec4(a_pos, 1.0));
     gl_Position = u_mvp * vec4(a_pos, 1.0);
 }
 "#;
@@ -97,10 +102,12 @@ uniform vec3 u_light;
 uniform float u_overhang;
 uniform vec3 u_overhang_color;
 IN vec3 v_normal;
+IN float v_height;
 void main() {
     vec3 n = normalize(v_normal);
     vec3 base = u_color;
-    if (u_overhang > 0.0 && -n.z > u_overhang) {
+    // Faces that lie on the plate look down too, but the plate holds them.
+    if (u_overhang > 0.0 && -n.z > u_overhang && v_height > 0.05) {
         base = u_overhang_color;
     }
     // Back faces (inside of open or hollow models) are lit from the other side and darker.
@@ -246,6 +253,7 @@ impl Renderer {
                 u_light: gl.get_uniform_location(mesh_program, "u_light"),
                 u_overhang: gl.get_uniform_location(mesh_program, "u_overhang"),
                 u_overhang_color: gl.get_uniform_location(mesh_program, "u_overhang_color"),
+                u_height: gl.get_uniform_location(mesh_program, "u_height"),
                 u_color_mvp: gl.get_uniform_location(color_program, "u_mvp"),
                 mesh_program,
                 color_program,
@@ -338,6 +346,14 @@ impl Renderer {
                     -1.0
                 };
                 gl.uniform_1_f32(self.u_overhang.as_ref(), cos);
+                let height = obj.model.row(2);
+                gl.uniform_4_f32(
+                    self.u_height.as_ref(),
+                    height.x,
+                    height.y,
+                    height.z,
+                    height.w,
+                );
                 gl.uniform_3_f32(
                     self.u_color.as_ref(),
                     obj.color[0],

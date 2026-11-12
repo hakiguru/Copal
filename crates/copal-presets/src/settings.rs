@@ -252,6 +252,9 @@ pub struct HollowSettings {
     pub drain_hole_diameter_mm: f32,
     /// How deep a drain hole goes into the wall.
     pub drain_hole_depth_mm: f32,
+    /// Closed hollows smaller than this (mm³) are filled again: they would only trap resin.
+    /// 0 keeps every hollow.
+    pub min_pocket_mm3: f32,
 }
 
 impl Default for HollowSettings {
@@ -262,6 +265,7 @@ impl Default for HollowSettings {
             voxel_mm: 0.5,
             drain_hole_diameter_mm: 3.0,
             drain_hole_depth_mm: 4.0,
+            min_pocket_mm3: 50.0,
         }
     }
 }

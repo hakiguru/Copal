@@ -3,6 +3,53 @@
 All notable changes to Copal. Newest first.
 Each version here is also published as a GitHub Release.
 
+## 0.3.0
+
+A model ready to print in one click: the best angle, a hollow with drain holes that work, and supports that hold each other. Plus tidier tools, hotkeys for almost everything, and your own printers.
+
+- Prepare for printing (Prepare step, Ctrl+P, `prepare` in the console): one button turns the model the best way up, hollows it if you tick Hollow, adds drain holes and supports, and checks the result. One undo step takes it all back
+- Auto orientation (Ctrl+T, in Layout and in Prepare): Copal tries about 700 directions and picks the one with small layers that grow slowly, few overhangs and not too much height. Small layers pull less on the film, so the print stays on the plate. Four goals: Balanced, Strong (smallest layers), Clean (fewest overhangs), Low (shortest print). Only orientations that fit your printer are tried
+- Supports hold each other: every trunk is tied to its three nearest neighbours with 45° braces, and all supports of a model hang together as one lattice. Tall supports get thicker
+- A support you add by hand joins what is there: next to another support it becomes its branch, otherwise it gets its own body tied to the trunks around it
+- Hollow models get supports inside too: a part of the hollow's ceiling that would print in mid-air stands on the floor of the hollow
+- Islands with no way down get a short strut to the nearest part of the model instead of nothing
+- The island check runs by itself after auto supports, looks inside hollows and around drain holes, and is much quicker on big models
+- Drain holes: every separate hollow gets its own two holes. A hole added by click is as deep as the wall there, so it always opens the hollow. A line under the buttons says if the holes work: closed hollows, holes that end in the wall and hollows with a single hole are named (`holes check`)
+- Supports keep out of drain holes and hold the rim of a hole at the lowest point of a model
+- The Prepare panel follows the order you work: Ready in one click, 1 Orientation, 2 Hollow, 3 Drain holes, 4 Supports. The support preset in use is outlined
+- Fixed: a model made of parts that run into each other (a body with a handle pushed into it) kept solid lumps inside its hollow. Such models now slice and hollow as one solid
+- Fixed: a hollow box could keep a solid bar through its middle, and a slice could lose a row of pixels where two triangles of a flat face meet
+- `copal-cli render part.copal -o part.png --view front`: a picture of the plate from the terminal, models grey, supports orange
+- New commands: `object.orient`, `object.prepare`; shell: `orient`, `prepare`, `holes check`; `supports 1` is short for `supports auto 1`
+- New auto supports. Copal now looks at the model the way a print fails: first the islands and the lowest points, then the free edges of every overhang, then an even honeycomb grid over the overhang itself. No more random scatter
+- Edges are held: supports stand in a row along the rim of an overhang and along ridges that point down, a little inside the edge
+- Close supports share a trunk: a support next to another leans over and joins it. Fewer feet, a smaller raft (Supports tab → "Let close supports share a trunk")
+- Islands in tight spots get a short, thin support instead of none
+- The search for islands stays quick on big models
+- `overhangs` in the console says how much of a model hangs over: area, separate areas, lowest points, edges
+- The red overhang colour no longer paints faces that lie on the plate
+- Hollowing: small closed pockets are filled again, because they only trap resin (Hollow tab → "Fill pockets under"). Big models get bigger voxels by themselves instead of an error, and hollowing needs less memory
+- Hollowing tells you what it did: resin saved, separate hollows, pockets filled
+- Auto drain holes: one click puts two holes at the lowest points of the hollow, straight down, one for air and one for resin (Prepare → Auto holes, Ctrl+J, `holes auto`)
+- Layout fixes: handles are grabbed where you pressed, not a few pixels later, so thin arrows and rings no longer slip away and turn the camera instead
+- Scaling with the handles keeps the middle of the model in place; before, the model slid away from its handles
+- A click on a handle no longer deselects the model
+- Dragging a model in a view almost level with the plate no longer throws it far away
+- The up arrow lifts a model but never pushes it into the plate
+- A model with supports goes back to the plate when rotating or scaling with the handles removes them
+- Dragging is smooth with big models: Copal no longer walks every vertex several times per frame
+- While you drag, a line under the view shows the position, angles or scale
+- Models outside the build volume turn red and are named under the view and in the tools
+- Tools panels are tidy: buttons of the same size in rows, grouped by what they do. New buttons: On plate, Center, Reset all, Overhangs, Auto holes
+- Move / Rotate / Scale and Fit are over the 3D view too
+- Hotkeys for almost everything, and a window that lists them (F1, or the Keys button): steps on 1 2 3, views on 4 5 6 7, arrows nudge the model, `[` `]` turn it, `=` `-` scale it, P on plate, C center, Alt+X / Y / Z mirror, Shift+A arrange, N next model, Ctrl+U auto supports, Ctrl+H hollow, V / B / A / H for the Prepare tools, I islands, O overhangs, L layers, and more
+- Your own printers: a printer is now a small text file in its own folder, next to the resin folder. Save the current printer as yours (Print tab → My printer), change the numbers, or drop in a file someone shared. It shows up in a few seconds, without a restart
+- Importing a preset file tells printers and resins apart and puts each in its folder
+- The console reaches everything the mouse does: `step`, `select`, `view`, `tool`, `panel`, `hotkeys`, and `settings theme=art mode=light` works there again
+- New shell commands for the console and copal-cli: `holes [auto|clear]`, `overhangs`, `unhollow`, `arrange`, `drop`, `center`, `presets save|load|delete printer`
+- New document commands: `holes.auto`, `object.center`, `object.reset`
+- Copal Lite: Prepare menu, views in the View menu, shortcuts in the Help menu
+
 ## 0.2.0
 
 Supports, hollowing and drain holes: Copal can now prepare complex models for printing.

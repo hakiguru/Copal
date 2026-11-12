@@ -18,19 +18,73 @@ impl Default for PreviewStyle {
     }
 }
 
+/// Where a picture is taken from.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ViewAngle {
+    /// Turn around the vertical axis, degrees.
+    pub yaw_deg: f32,
+    /// Height of the camera over the plate, degrees: 90 looks straight down, -90 straight up.
+    pub pitch_deg: f32,
+}
+
+impl Default for ViewAngle {
+    fn default() -> Self {
+        Self {
+            yaw_deg: 30.0,
+            pitch_deg: 35.0,
+        }
+    }
+}
+
+impl ViewAngle {
+    /// `iso`, `front`, `back`, `left`, `right`, `top`, `bottom` or `under` (from below, at an angle).
+    pub fn named(name: &str) -> Option<ViewAngle> {
+        let (yaw_deg, pitch_deg) = match name {
+            "iso" => (30.0, 35.0),
+            "front" => (0.0, 0.0),
+            "back" => (180.0, 0.0),
+            "left" => (-90.0, 0.0),
+            "right" | "side" => (90.0, 0.0),
+            "top" => (0.0, 90.0),
+            "bottom" => (0.0, -90.0),
+            "under" => (30.0, -40.0),
+            _ => return None,
+        };
+        Some(ViewAngle { yaw_deg, pitch_deg })
+    }
+}
+
 /// Renders triangles (plate coordinates, mm) into a `width × height` RGB image, seen from the
 /// front, a bit from above, and zoomed to fit.
 pub fn render(tris: &[[Vec3; 3]], width: u32, height: u32, style: PreviewStyle) -> Vec<u8> {
+    render_parts(
+        &[(tris, style.model)],
+        width,
+        height,
+        style.background,
+        ViewAngle::default(),
+    )
+}
+
+/// Renders groups of triangles, each in its own color, seen from `view` and zoomed to fit.
+pub fn render_parts(
+    parts: &[(&[[Vec3; 3]], [u8; 3])],
+    width: u32,
+    height: u32,
+    background: [u8; 3],
+    angle: ViewAngle,
+) -> Vec<u8> {
     let (w, h) = (width as usize, height as usize);
-    let mut rgb: Vec<u8> = style.background.repeat(w * h);
-    if tris.is_empty() || w == 0 || h == 0 {
+    let mut rgb: Vec<u8> = background.repeat(w * h);
+    if parts.iter().all(|(t, _)| t.is_empty()) || w == 0 || h == 0 {
         return rgb;
     }
-    // Camera: turn 30° around Z, then tilt 35° so we look down at the model.
-    let view =
-        Mat3::from_rotation_x(-55f32.to_radians()) * Mat3::from_rotation_z(-30f32.to_radians());
+    // Camera: turn around Z, then tilt so we look down at the model.
+    let view = Mat3::from_rotation_x((angle.pitch_deg - 90.0).to_radians())
+        * Mat3::from_rotation_z(-angle.yaw_deg.to_radians());
+    let all = || parts.iter().flat_map(|(t, _)| t.iter());
     let (mut lo, mut hi) = (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY));
-    for t in tris {
+    for t in all() {
         for v in t {
             let p = view * *v;
             lo = lo.min(p);
@@ -48,17 +102,21 @@ pub fn render(tris: &[[Vec3; 3]], width: u32, height: u32, style: PreviewStyle) 
             p.z,
         )
     };
-    let light = Vec3::new(0.35, -0.5, 0.8).normalize();
+    // The light comes from the upper left, behind the camera.
+    let light = Vec3::new(-0.35, 0.45, 0.82).normalize();
     let mut depth = vec![f32::NEG_INFINITY; w * h];
-    for t in tris {
+    for (t, model) in parts
+        .iter()
+        .flat_map(|(t, c)| t.iter().map(move |x| (x, c)))
+    {
         let n = (t[1] - t[0]).cross(t[2] - t[0]);
         if n.length_squared() < 1e-12 {
             continue;
         }
         let n = n.normalize();
         // Two-sided light so open meshes still look solid.
-        let shade = 0.25 + 0.75 * n.dot(light).abs();
-        let color = style.model.map(|c| (c as f32 * shade).min(255.0) as u8);
+        let shade = 0.25 + 0.75 * (view * n).dot(light).abs();
+        let color = model.map(|c| (c as f32 * shade).min(255.0) as u8);
         let [a, b, c] = t.map(to_screen);
         let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as usize;
         let max_x = (a.x.max(b.x).max(c.x).ceil() as usize).min(w - 1);

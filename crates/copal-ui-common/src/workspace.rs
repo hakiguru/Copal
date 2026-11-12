@@ -70,8 +70,74 @@ pub enum LineKind {
     Error,
 }
 
-/// Console commands that only the apps have (the shell has the rest).
-pub const APP_COMMANDS: &[&str] = &["clear", "preferences"];
+/// Console commands that only the apps have (the shell has the rest): what is on the screen
+/// rather than what is in the project. With them the console reaches everything the mouse does.
+pub const APP_HELP: &[(&str, &str)] = &[
+    ("clear", "clear  empty the console"),
+    (
+        "hotkeys",
+        "hotkeys  list every keyboard shortcut (F1 shows them in a window)",
+    ),
+    (
+        "panel",
+        "panel tools|settings|console [on|off]  show or hide a side window",
+    ),
+    ("preferences", "preferences  open the preferences window"),
+    (
+        "select",
+        "select <id>|next|prev|none  choose the model that tools work on",
+    ),
+    ("step", "step layout|prepare|export  go to a workflow step"),
+    (
+        "tool",
+        "tool move|rotate|scale | tool view|select|add|hole  pick the handles (Layout) or the click tool (Prepare)",
+    ),
+    (
+        "view",
+        "view iso|top|front|side|fit | view overhangs [on|off] | view layers [on|off|<number>]  the 3D view",
+    ),
+];
+
+/// Names of the app-only console commands.
+pub const APP_COMMANDS: &[&str] = &[
+    "clear",
+    "hotkeys",
+    "panel",
+    "preferences",
+    "select",
+    "step",
+    "tool",
+    "view",
+];
+
+/// Words that can follow an app-only command, for Tab completion.
+pub fn app_arguments(line: &str) -> Vec<String> {
+    let (head, rest) = line.split_once(' ').unwrap_or((line, ""));
+    let word = rest.rsplit(' ').next().unwrap_or("");
+    let options: &[&str] = match head {
+        "panel" => &["tools", "settings", "console", "on", "off"],
+        "select" => &["next", "prev", "none"],
+        "step" => &["layout", "prepare", "export"],
+        "tool" => &["move", "rotate", "scale", "view", "select", "add", "hole"],
+        "view" => &[
+            "iso",
+            "top",
+            "front",
+            "side",
+            "fit",
+            "overhangs",
+            "layers",
+            "on",
+            "off",
+        ],
+        _ => &[],
+    };
+    options
+        .iter()
+        .filter(|o| o.starts_with(word))
+        .map(|o| o.to_string())
+        .collect()
+}
 
 type ExportResult = Result<(ExportReport, Option<PrintRecord>), ExportError>;
 
@@ -103,6 +169,10 @@ pub struct Workspace {
     pub show_overhangs: bool,
     pub show_settings: bool,
     pub show_history: bool,
+    /// The window with every keyboard shortcut (F1).
+    pub show_hotkeys: bool,
+    /// Put the cursor into the console on the next frame.
+    pub(crate) focus_console: bool,
     pub console_input: String,
     pub console: Vec<(LineKind, String)>,
     settings_changed: bool,
@@ -115,6 +185,8 @@ pub struct Workspace {
     /// Values of settings fields while they are dragged (committed on release).
     pub(crate) field_edit: std::collections::HashMap<String, f64>,
     pub(crate) drag: Option<ViewDrag>,
+    /// Where the mouse button went down in the 3D view (see `viewport`).
+    pub(crate) press_pos: Option<egui::Pos2>,
     pub(crate) hot_handle: Option<gizmo::Handle>,
     pub(crate) renderer: Arc<Mutex<Option<Result<Renderer, String>>>>,
     pub(crate) dialog: Option<FileDialog>,
@@ -157,6 +229,8 @@ impl Workspace {
             show_overhangs: false,
             show_settings: false,
             show_history: false,
+            show_hotkeys: false,
+            focus_console: false,
             console_input: String::new(),
             console: Vec::new(),
             settings_changed: false,
@@ -166,6 +240,7 @@ impl Workspace {
             editing: None,
             field_edit: Default::default(),
             drag: None,
+            press_pos: None,
             hot_handle: None,
             renderer: Arc::new(Mutex::new(None)),
             dialog: None,
@@ -262,6 +337,24 @@ impl Workspace {
                 self.show_settings = true;
                 return;
             }
+            "hotkeys" => {
+                for line in crate::hotkeys::hotkey_lines() {
+                    self.log(LineKind::Info, line);
+                }
+                return;
+            }
+            "step" | "select" | "view" | "tool" | "panel" => {
+                if let Err(usage) = self.app_command(head, rest) {
+                    self.log(LineKind::Error, format!("usage: {usage}"));
+                }
+                return;
+            }
+            "help" if APP_HELP.iter().any(|(name, _)| *name == rest) => {
+                if let Some((_, text)) = APP_HELP.iter().find(|(name, _)| *name == rest) {
+                    self.log(LineKind::Info, *text);
+                }
+                return;
+            }
             "export" => {
                 let path = if rest.is_empty() {
                     self.shell.default_export_path().map_err(|e| e.to_string())
@@ -288,6 +381,16 @@ impl Workspace {
         if matches!(head, "open" | "new") || (head == "history" && rest.starts_with("open")) {
             self.after_document_swap();
         }
+        if head == "help" && rest.is_empty() {
+            self.log(LineKind::Info, "In the app only:");
+            for (_, text) in APP_HELP {
+                self.log(LineKind::Info, format!("  {text}"));
+            }
+        }
+        // `settings theme=art` changed the settings file: take the new look at once.
+        if head == "settings" && rest.contains('=') {
+            self.set_settings(Settings::load_or_default());
+        }
         // Select a newly added object.
         let new: Vec<ObjectId> = self
             .doc()
@@ -304,6 +407,120 @@ impl Workspace {
         }
         let _ = doc_before;
         self.fix_selection();
+    }
+
+    /// An app-only command that changes what is on the screen. `Err` is the usage line.
+    fn app_command(&mut self, head: &str, rest: &str) -> Result<(), &'static str> {
+        let usage = APP_HELP
+            .iter()
+            .find(|(name, _)| *name == head)
+            .map(|(_, text)| *text)
+            .unwrap_or("see `help`");
+        let (what, arg) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+        let arg = arg.trim();
+        // `on`, `off`, or nothing to flip.
+        let switch = |now: bool| match arg {
+            "on" => true,
+            "off" => false,
+            _ => !now,
+        };
+        match head {
+            "step" => {
+                self.step = match what {
+                    "layout" | "1" => Step::Layout,
+                    "prepare" | "2" => Step::Prepare,
+                    "export" | "3" => Step::Export,
+                    _ => return Err(usage),
+                };
+            }
+            "select" => match what {
+                "" | "none" => self.selected = None,
+                "next" => self.select_next(true),
+                "prev" | "previous" => self.select_next(false),
+                other => {
+                    let id = other.parse::<u64>().ok().map(ObjectId);
+                    match id.filter(|id| self.doc().object(*id).is_some()) {
+                        Some(id) => self.selected = Some(id),
+                        None => return Err(usage),
+                    }
+                }
+            },
+            "view" => match what {
+                "fit" => self.framed = false,
+                "overhangs" => self.show_overhangs = switch(self.show_overhangs),
+                "layers" => {
+                    match arg.parse::<u32>() {
+                        Ok(n) => {
+                            self.preview.show = true;
+                            self.preview.layer = n.saturating_sub(1);
+                        }
+                        Err(_) => self.preview.show = switch(self.preview.show),
+                    }
+                    if self.preview.show {
+                        self.step = Step::Export;
+                    }
+                }
+                other => match crate::view3d::CameraView::parse(other) {
+                    Some(view) => self.set_camera_view(view),
+                    None => return Err(usage),
+                },
+            },
+            "tool" => {
+                use crate::prep::PrepTool;
+                match what {
+                    "move" | "rotate" | "scale" => {
+                        self.gizmo_mode = match what {
+                            "move" => gizmo::Mode::Move,
+                            "rotate" => gizmo::Mode::Rotate,
+                            _ => gizmo::Mode::Scale,
+                        };
+                        self.step = Step::Layout;
+                    }
+                    "view" | "look" => self.prep.tool = PrepTool::Look,
+                    "select" | "add" | "hole" => {
+                        self.prep.tool = match what {
+                            "select" => PrepTool::Select,
+                            "add" => PrepTool::AddSupport,
+                            _ => PrepTool::AddHole,
+                        };
+                        self.step = Step::Prepare;
+                    }
+                    _ => return Err(usage),
+                }
+            }
+            "panel" => {
+                let mut panels = self.settings.panels;
+                let slot = match what {
+                    "tools" => &mut panels.tools,
+                    "settings" => &mut panels.settings,
+                    "console" => &mut panels.console,
+                    _ => return Err(usage),
+                };
+                *slot = switch(*slot);
+                self.set_panels(panels);
+            }
+            _ => return Err(usage),
+        }
+        Ok(())
+    }
+
+    /// Selects the next (or previous) model in the list, going round at the ends.
+    pub fn select_next(&mut self, forward: bool) {
+        let ids: Vec<ObjectId> = self.doc().objects().iter().map(|o| o.id).collect();
+        if ids.is_empty() {
+            self.selected = None;
+            return;
+        }
+        let at = self
+            .selected
+            .and_then(|id| ids.iter().position(|x| *x == id));
+        let next = match (at, forward) {
+            (None, true) => 0,
+            (None, false) => ids.len() - 1,
+            (Some(i), true) => (i + 1) % ids.len(),
+            (Some(i), false) => (i + ids.len() - 1) % ids.len(),
+        };
+        self.selected = Some(ids[next]);
     }
 
     /// Runs a document command; on error logs it. Returns true if it worked.
@@ -529,19 +746,32 @@ impl Workspace {
     }
 
     /// Global hotkeys. Call once per frame before drawing panels.
+    /// The table people see is [`crate::hotkeys::HOTKEYS`]: keep the two in step.
     pub fn hotkeys(&mut self, ui: &Ui) {
+        use crate::prep::PrepTool;
+        use crate::view3d::CameraView;
         let ctx = ui.ctx();
         let shortcut = |m, k| ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(m, k)));
-        let redo = shortcut(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z)
-            || shortcut(Modifiers::COMMAND, Key::Y);
+        // Longer combinations first: Ctrl+Shift+Z also matches Ctrl+Z.
+        let ctrl_shift = Modifiers::COMMAND | Modifiers::SHIFT;
+        let redo = shortcut(ctrl_shift, Key::Z) || shortcut(Modifiers::COMMAND, Key::Y);
         let undo = shortcut(Modifiers::COMMAND, Key::Z);
-        let save_as = shortcut(Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
+        let save_as = shortcut(ctrl_shift, Key::S);
         let save = shortcut(Modifiers::COMMAND, Key::S);
         let open = shortcut(Modifiers::COMMAND, Key::O);
         let import = shortcut(Modifiers::COMMAND, Key::I);
         let export = shortcut(Modifiers::COMMAND, Key::E);
         let dup = shortcut(Modifiers::COMMAND, Key::D);
         let prefs = shortcut(Modifiers::COMMAND, Key::Comma);
+        let reset = shortcut(Modifiers::COMMAND, Key::R);
+        let remove_supports = shortcut(ctrl_shift, Key::U);
+        let auto_supports = shortcut(Modifiers::COMMAND, Key::U);
+        let unhollow = shortcut(ctrl_shift, Key::H);
+        let hollow = shortcut(Modifiers::COMMAND, Key::H);
+        let auto_holes = shortcut(Modifiers::COMMAND, Key::J);
+        let auto_orient = shortcut(Modifiers::COMMAND, Key::T);
+        let prepare = shortcut(Modifiers::COMMAND, Key::P);
+        let preset = [Key::Num1, Key::Num2, Key::Num3].map(|k| shortcut(Modifiers::COMMAND, k));
         let alt =
             |k| ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::ALT, k)));
         let mut panels = self.settings.panels;
@@ -554,9 +784,18 @@ impl Workspace {
         if alt(Key::Num3) || alt(Key::F12) {
             panels.console = !panels.console;
         }
-        self.set_panels(panels);
         let typing = ctx.memory(|m| m.focused().is_some()) || self.dialog.is_some();
         let key = |k| !typing && ctx.input(|i| i.key_pressed(k) && i.modifiers.is_none());
+        let shift_key = |k| !typing && ctx.input(|i| i.key_pressed(k) && i.modifiers.shift_only());
+        // The console: ` opens it and puts the cursor there.
+        if key(Key::Backtick) {
+            panels.console = true;
+            self.focus_console = true;
+        }
+        self.set_panels(panels);
+        if ctx.input(|i| i.key_pressed(Key::F1)) {
+            self.show_hotkeys = !self.show_hotkeys;
+        }
         if redo {
             self.redo();
         } else if undo {
@@ -579,7 +818,98 @@ impl Workspace {
         if prefs {
             self.show_settings = !self.show_settings;
         }
+
+        // Steps and the 3D view.
+        for (k, step) in [
+            (Key::Num1, Step::Layout),
+            (Key::Num2, Step::Prepare),
+            (Key::Num3, Step::Export),
+        ] {
+            if key(k) {
+                self.step = step;
+            }
+        }
+        for (k, view) in [
+            (Key::Num4, CameraView::Iso),
+            (Key::Num5, CameraView::Top),
+            (Key::Num6, CameraView::Front),
+            (Key::Num7, CameraView::Side),
+        ] {
+            if key(k) {
+                self.set_camera_view(view);
+            }
+        }
+        if key(Key::F) {
+            self.framed = false;
+        }
+        if key(Key::O) {
+            self.show_overhangs = !self.show_overhangs;
+        }
+        if key(Key::L) && self.step == Step::Export {
+            self.preview.show = !self.preview.show;
+        }
+        if key(Key::N) {
+            self.select_next(true);
+        }
+        if shift_key(Key::N) {
+            self.select_next(false);
+        }
+
+        // Prepare: the big actions work from any step and go to Prepare.
+        if prepare {
+            self.step = Step::Prepare;
+            self.prepare_for_printing(false);
+        }
+        if auto_orient {
+            self.auto_orient(false);
+        }
+        if auto_supports {
+            self.step = Step::Prepare;
+            self.auto_supports(false);
+        }
+        if remove_supports {
+            self.remove_supports();
+        }
+        if hollow {
+            self.step = Step::Prepare;
+            self.hollow_selected(false);
+        }
+        if unhollow
+            && let Some(id) = self.selected
+            && self
+                .doc()
+                .object(id)
+                .is_some_and(|o| o.prep.cavity.is_some())
+        {
+            self.run(&format!("object.unhollow id={id}"));
+        }
+        if auto_holes {
+            self.auto_holes();
+        }
+        if self.step == Step::Prepare {
+            for (k, tool) in [
+                (Key::V, PrepTool::Look),
+                (Key::B, PrepTool::Select),
+                (Key::A, PrepTool::AddSupport),
+                (Key::H, PrepTool::AddHole),
+            ] {
+                if key(k) {
+                    self.prep.tool = tool;
+                }
+            }
+            if key(Key::I) {
+                self.check_islands();
+            }
+            for (on, name) in preset.into_iter().zip(["light", "medium", "heavy"]) {
+                if on {
+                    self.run(&format!("presets load supports {name}"));
+                }
+            }
+        }
+
+        // The selected model.
         let delete = key(Key::Delete) || key(Key::X);
+        let layout = self.doc().settings.layout;
         if self.step == Step::Prepare && !self.prep.selection.is_empty() {
             if delete {
                 self.delete_selected_supports();
@@ -591,6 +921,80 @@ impl Workspace {
             if delete {
                 self.run(&format!("object.remove id={id}"));
             }
+            if reset && !typing {
+                self.run(&format!("object.reset id={id}"));
+            }
+            if self.step == Step::Layout && !typing {
+                // Arrows nudge by the move snap step; Shift makes it ten steps.
+                let (shift, plain) =
+                    ctx.input(|i| (i.modifiers.shift, !i.modifiers.command && !i.modifiers.alt));
+                let pressed = |k| plain && ctx.input(|i| i.key_pressed(k));
+                let base = if layout.move_snap_mm > 0.0 {
+                    layout.move_snap_mm
+                } else {
+                    1.0
+                };
+                let mm = base * if shift { 10.0 } else { 1.0 };
+                let mut d = [0.0f32; 3];
+                for (k, axis, sign) in [
+                    (Key::ArrowRight, 0, 1.0),
+                    (Key::ArrowLeft, 0, -1.0),
+                    (Key::ArrowUp, 1, 1.0),
+                    (Key::ArrowDown, 1, -1.0),
+                    (Key::PageUp, 2, 1.0),
+                    (Key::PageDown, 2, -1.0),
+                ] {
+                    if pressed(k) {
+                        d[axis] += sign * mm;
+                    }
+                }
+                if d != [0.0; 3] {
+                    let mut line = format!("object.move id={id}");
+                    for (axis, v) in ["x", "y", "z"].into_iter().zip(d) {
+                        if v != 0.0 {
+                            line.push_str(&format!(" {axis}={v}"));
+                        }
+                    }
+                    self.run(&line);
+                }
+                let turn = if layout.rotate_snap_deg > 0.0 {
+                    layout.rotate_snap_deg
+                } else {
+                    15.0
+                };
+                if key(Key::OpenBracket) {
+                    self.run(&format!("object.rotate id={id} z={turn}"));
+                }
+                if key(Key::CloseBracket) {
+                    self.run(&format!("object.rotate id={id} z=-{turn}"));
+                }
+                let percent = if layout.scale_snap_percent > 0.0 {
+                    layout.scale_snap_percent
+                } else {
+                    10.0
+                };
+                let grow = 1.0 + percent / 100.0;
+                if key(Key::Equals) || key(Key::Plus) {
+                    self.run(&format!("object.scale id={id} factor={grow}"));
+                }
+                if key(Key::Minus) {
+                    self.run(&format!("object.scale id={id} factor={}", 1.0 / grow));
+                }
+                if key(Key::P) {
+                    self.run(&format!("object.drop id={id}"));
+                }
+                if key(Key::C) {
+                    self.run(&format!("object.center id={id}"));
+                }
+                for (k, axis) in [(Key::X, "x"), (Key::Y, "y"), (Key::Z, "z")] {
+                    if alt(k) {
+                        self.run(&format!("object.mirror id={id} axis={axis}"));
+                    }
+                }
+            }
+        }
+        if shift_key(Key::A) && self.step == Step::Layout && !self.doc().objects().is_empty() {
+            self.run("object.arrange");
         }
         // Blender keys pick the gizmo.
         if key(Key::G) {
@@ -608,16 +1012,15 @@ impl Workspace {
         if key(Key::Escape) {
             if let Some(job) = &self.export_job {
                 job.cancel.store(true, Ordering::Relaxed);
+            } else if self.show_hotkeys {
+                self.show_hotkeys = false;
             } else if !self.prep.selection.is_empty() {
                 self.prep.selection.clear();
-            } else if self.prep.tool != crate::prep::PrepTool::Look {
-                self.prep.tool = crate::prep::PrepTool::Look;
+            } else if self.prep.tool != PrepTool::Look {
+                self.prep.tool = PrepTool::Look;
             } else {
                 self.selected = None;
             }
-        }
-        if key(Key::F) {
-            self.framed = false;
         }
     }
 

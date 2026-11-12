@@ -114,6 +114,12 @@ impl eframe::App for CopalApp {
                     {
                         ws.show_settings = !ws.show_settings;
                     }
+                    if b(ui, "Keys")
+                        .on_hover_text("Every keyboard shortcut (F1)")
+                        .clicked()
+                    {
+                        ws.show_hotkeys = !ws.show_hotkeys;
+                    }
                 });
             });
         let top_rect = top.response.rect;
@@ -151,6 +157,7 @@ impl eframe::App for CopalApp {
         ws.dialogs(ui.ctx(), look);
         ws.history_window(ui.ctx(), look);
         ws.settings_window(ui.ctx(), look);
+        ws.hotkeys_window(ui.ctx(), look);
     }
 }
 

@@ -1,10 +1,11 @@
-//! Personal resins in the GUI: the "My resin" form in the Resin tab, importing preset files and
-//! watching the resin folder, so a file dropped there shows up without a restart.
+//! Personal printers and resins in the GUI: the "My resin" form in the Resin tab, "My printer" in
+//! the Print tab, importing preset files and watching the two template folders, so a file
+//! dropped there shows up without a restart.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use copal_core::presets::Kind;
+use copal_core::presets::{Imported, Kind};
 use copal_core::{library, script::quote};
 use egui::{RichText, TextEdit, Ui};
 
@@ -25,10 +26,14 @@ pub struct ResinState {
     filled_from: Option<String>,
     /// Ids of the resins that come from the personal folder.
     personal: Vec<String>,
-    /// Files in the folder that could not be read.
+    /// Files in the folders that could not be read.
     pub problems: Vec<String>,
     signature: Option<u64>,
     checked: Option<Instant>,
+    /// Name for "Save as my printer".
+    pub printer_name: String,
+    /// Ids of the printers that come from the personal folder.
+    personal_printers: Vec<String>,
 }
 
 /// Opens a folder in the system file manager. Errors are returned for the console.
@@ -63,7 +68,11 @@ impl Workspace {
         let Some(user) = copal_core::user_presets() else {
             return;
         };
-        let sig = user.signature(Kind::Resin);
+        // One number for both template folders: printers and resins.
+        let sig = user
+            .signature(Kind::Resin)
+            .wrapping_mul(31)
+            .wrapping_add(user.signature(Kind::Printer));
         let first = self.resins.signature.is_none();
         if self.resins.signature == Some(sig) {
             return;
@@ -72,7 +81,8 @@ impl Workspace {
         self.reload_resins(!first);
     }
 
-    /// Reads the personal resin folder again. With `announce`, says so in the console.
+    /// Reads the personal printer and resin folders again. With `announce`, says so in the
+    /// console.
     fn reload_resins(&mut self, announce: bool) {
         let problems = copal_core::reload_user_library();
         if let Some(user) = copal_core::user_presets() {
@@ -81,26 +91,34 @@ impl Workspace {
                 .into_iter()
                 .filter_map(|(_, r)| r.ok().map(|r| r.id))
                 .collect();
+            self.resins.personal_printers = user
+                .printer_files()
+                .into_iter()
+                .filter_map(|(_, p)| p.ok().map(|p| p.id))
+                .collect();
         }
         if announce {
             self.log(
                 LineKind::Info,
                 format!(
-                    "Resin folder changed: {} personal resins",
+                    "Template folders changed: {} personal printers, {} personal resins",
+                    self.resins.personal_printers.len(),
                     self.resins.personal.len()
                 ),
             );
+            // A changed printer may have another plate.
+            self.framed = false;
         }
         for p in &problems {
             if !self.resins.problems.contains(p) {
-                self.log(LineKind::Error, format!("resin preset skipped: {p}"));
+                self.log(LineKind::Error, format!("preset skipped: {p}"));
             }
         }
         self.resins.problems = problems;
     }
 
-    /// Copies resin preset files into the personal folder and picks the first one that has
-    /// settings for the current printer.
+    /// Copies preset files into the personal folders: printer templates to `printers`, resin
+    /// templates to `resins`. Picks the first resin that has settings for the current printer.
     pub fn import_resins(&mut self, paths: &[PathBuf]) {
         let Some(user) = copal_core::user_presets() else {
             self.log(
@@ -111,8 +129,18 @@ impl Workspace {
         };
         let mut pick = None;
         for p in paths {
-            match user.import_resin(p) {
-                Ok((r, dest)) => {
+            match user.import(p) {
+                Ok(Imported::Printer(printer, dest)) => {
+                    self.log(
+                        LineKind::Info,
+                        format!(
+                            "Imported printer {} → {}. Choose it in the printer list.",
+                            printer.name(),
+                            dest.display()
+                        ),
+                    );
+                }
+                Ok(Imported::Resin(r, dest)) => {
                     self.log(
                         LineKind::Info,
                         format!("Imported {} → {}", r.title(), dest.display()),
@@ -139,7 +167,8 @@ impl Workspace {
             }
         }
         self.reload_resins(false);
-        self.resins.signature = Some(user.signature(Kind::Resin));
+        // Let the folder watcher notice nothing new on its next look.
+        self.resins.signature = None;
         if let Some(id) = pick
             && self.doc().printer.is_some()
         {
@@ -149,6 +178,12 @@ impl Workspace {
 
     /// Opens the personal resin folder in the file manager (and prints its path).
     pub fn open_resin_folder(&mut self) {
+        self.open_preset_folder(Kind::Resin);
+    }
+
+    /// Opens the folder of printer templates or of resin templates in the file manager (and
+    /// prints its path).
+    pub fn open_preset_folder(&mut self, kind: Kind) {
         let Some(user) = copal_core::user_presets() else {
             self.log(
                 LineKind::Error,
@@ -156,14 +191,95 @@ impl Workspace {
             );
             return;
         };
-        match user.ensure_folder(Kind::Resin) {
+        match user.ensure_folder(kind) {
             Ok(dir) => {
-                self.log(LineKind::Info, format!("Resin presets: {}", dir.display()));
+                let what = if kind == Kind::Printer {
+                    "Printer templates"
+                } else {
+                    "Resin templates"
+                };
+                self.log(LineKind::Info, format!("{what}: {}", dir.display()));
                 if let Err(e) = open_in_file_manager(&dir) {
                     self.log(LineKind::Error, e);
                 }
             }
             Err(e) => self.log(LineKind::Error, e.to_string()),
+        }
+    }
+
+    /// The "My printer" part of the Print tab: printer templates in their own folder.
+    pub(crate) fn my_printer_section(&mut self, ui: &mut Ui, look: &Look) {
+        let p = look.pal;
+        widgets::section(ui, look, "My printer");
+        ui.label(
+            RichText::new(
+                "A printer is a small text file: screen, build height, file format. Save the \
+                 current one as your own, change the numbers in the file, or add a file \
+                 someone shared. Your printers stay when Copal updates.",
+            )
+            .small()
+            .color(p.text_faint),
+        );
+        let current = self.doc().printer.clone();
+        let personal = current
+            .as_ref()
+            .is_some_and(|id| self.resins.personal_printers.contains(id));
+        let w = ui.available_width();
+        ui.horizontal(|ui| {
+            ui.add(
+                TextEdit::singleline(&mut self.resins.printer_name)
+                    .hint_text("name, e.g. Saturn in the garage")
+                    .desired_width((w - 70.0).max(80.0)),
+            );
+        });
+        let name = self.resins.printer_name.trim().to_string();
+        let can_save = !name.is_empty() && current.is_some();
+        let new_id = format!("my/{}", copal_core::presets::slug(&name));
+        ui.horizontal_wrapped(|ui| {
+            ui.add_enabled_ui(can_save, |ui| {
+                if widgets::button(ui, look, ButtonKind::Primary, "Save as my printer")
+                    .on_hover_text(
+                        "Writes the current printer to your printer folder under this name",
+                    )
+                    .clicked()
+                {
+                    self.run(&format!("presets save printer {}", quote(&name)));
+                    self.run(&format!("project.set_printer printer={}", quote(&new_id)));
+                    self.resins.printer_name.clear();
+                    self.reload_resins(false);
+                }
+            });
+            if personal
+                && let Some(id) = current.clone()
+                && widgets::button(ui, look, ButtonKind::Normal, "Delete")
+                    .on_hover_text("Deletes the file of this personal printer")
+                    .clicked()
+            {
+                self.run(&format!("presets delete printer {}", quote(&id)));
+                self.reload_resins(false);
+            }
+        });
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            if widgets::button(ui, look, ButtonKind::Normal, "Import file…")
+                .on_hover_text("Adds a printer or resin template (.toml). You can also drop it on the window.")
+                .clicked()
+            {
+                self.open_dialog(Purpose::ImportResin);
+            }
+            if widgets::button(ui, look, ButtonKind::Normal, "Open folder")
+                .on_hover_text("Every .toml file in this folder is a printer. Files you put there show up in a few seconds.")
+                .clicked()
+            {
+                self.open_preset_folder(Kind::Printer);
+            }
+        });
+        if let Some(dir) = copal_core::user_presets().map(|u| u.folder(Kind::Printer)) {
+            ui.label(
+                RichText::new(format!("Folder: {}", dir.display()))
+                    .small()
+                    .color(p.text_faint),
+            );
         }
     }
 

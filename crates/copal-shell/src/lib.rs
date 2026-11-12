@@ -5,11 +5,12 @@
 //! or a document command from the core registry (`object.move id=1 x=5`, `print.set …`).
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use copal_core::presets::{
-    ExposureSettings, HollowSettings, Kind, LayoutSettings, MotionSettings, Resin, ResinProfile,
-    SupportSettings, slug,
+    ExposureSettings, HollowSettings, Imported, Kind, LayoutSettings, MotionSettings, Printer,
+    Resin, ResinProfile, SupportSettings, slug,
 };
 use copal_core::prints::{Outcome, PrintHistory};
 use copal_core::time::{DateTime, format_duration};
@@ -33,7 +34,19 @@ impl Reply {
 
 /// Shell commands, for help and Tab completion.
 pub const COMMANDS: &[(&str, &str)] = &[
+    (
+        "arrange",
+        "arrange [spacing]  place all models on the plate in neat rows",
+    ),
+    (
+        "center",
+        "center [id|all]  move models to the middle of the plate",
+    ),
     ("commands", "list every document command"),
+    (
+        "drop",
+        "drop [id|all]  put models down on the plate (not ones that stand on supports)",
+    ),
     (
         "export",
         "export [file]  slice and write the printer file (also saved to the history)",
@@ -45,6 +58,10 @@ pub const COMMANDS: &[(&str, &str)] = &[
     (
         "history",
         "history [show|rate|open|remove] …  exported files and how they printed",
+    ),
+    (
+        "holes",
+        "holes [auto|clear|check] [id|all] [count]  drain holes at the lowest points of hollow models; no action lists them and says if they open the hollow",
     ),
     ("import", "import <file> …  add STL, OBJ or 3MF models"),
     (
@@ -59,8 +76,20 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("new", "new [name]  start an empty project"),
     ("open", "open <file.copal>  open a project"),
     (
+        "orient",
+        "orient [id|all] [balanced|strong|supports|fast]  turn models the best way up for printing",
+    ),
+    (
+        "overhangs",
+        "overhangs [id|all]  how much of a model hangs over and needs supports",
+    ),
+    (
+        "prepare",
+        "prepare [id|all] [hollow|solid] [keep] [balanced|strong|supports|fast] [islands|no-supports]  make models ready to print in one step: orientation, hollow, drain holes, supports. `keep` leaves the orientation",
+    ),
+    (
         "presets",
-        "presets [save|load|delete <kind> <name> | import <file.toml> | folder | reload]  your saved settings and resins",
+        "presets [save|load|delete <kind> <name> | import <file.toml> | folder | reload]  your saved settings, printers and resins",
     ),
     ("printers", "printers  every printer Copal knows"),
     ("redo", "redo  repeat the last undone step"),
@@ -71,7 +100,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("save", "save [file.copal]  save the project"),
     (
         "settings",
-        "settings [print|supports|hollow|layout]  show project settings",
+        "settings [print|supports|hollow|layout]  show project settings; `settings theme=art mode=light gizmo=1.2` changes the app",
     ),
     ("steps", "steps  what undo would revert, newest last"),
     (
@@ -79,11 +108,15 @@ pub const COMMANDS: &[(&str, &str)] = &[
         "supports [auto|islands|clear] [id|all]  add or remove supports; no action lists them",
     ),
     ("undo", "undo  revert the last step"),
+    (
+        "unhollow",
+        "unhollow [id|all]  make hollowed models solid again",
+    ),
 ];
 
 /// Kinds of presets the shell can save and load.
 pub const PRESET_KINDS: &[&str] = &[
-    "resin", "exposure", "motion", "supports", "hollow", "layout",
+    "printer", "resin", "exposure", "motion", "supports", "hollow", "layout",
 ];
 
 pub struct Shell {
@@ -181,28 +214,60 @@ impl Shell {
             "info" => self.info(&mut out),
             "supports" => self.supports(&mut out, &args),
             "islands" => self.islands(&mut out, &args),
-            "hollow" => {
-                let h = self.session.doc.settings.hollow;
+            "hollow" => self.hollow(&mut out, &args),
+            "unhollow" => {
                 for id in self.targets(&mut out, args.first().map(String::as_str)) {
-                    self.exec(
-                        &mut out,
-                        &format!(
-                            "object.hollow id={id} thickness={} voxel={}",
-                            h.wall_thickness_mm, h.voxel_mm
-                        ),
-                    );
+                    let hollow = self
+                        .session
+                        .doc
+                        .object(id)
+                        .is_some_and(|o| o.prep.cavity.is_some());
+                    if hollow {
+                        self.exec(&mut out, &format!("object.unhollow id={id}"));
+                    } else {
+                        out.info(format!("[{id}] is solid already"));
+                    }
+                }
+            }
+            "holes" => self.holes(&mut out, &args),
+            "orient" => self.orient(&mut out, &args),
+            "prepare" => self.prepare(&mut out, &args),
+            "overhangs" => self.overhangs(&mut out, &args),
+            "arrange" => {
+                let line = match args.first() {
+                    Some(spacing) => format!("object.arrange spacing={spacing}"),
+                    None => "object.arrange".to_string(),
+                };
+                self.exec(&mut out, &line);
+            }
+            "drop" | "center" => {
+                for id in self.targets(&mut out, args.first().map(String::as_str)) {
+                    self.exec(&mut out, &format!("object.{head} id={id}"));
                 }
             }
             "settings" => self.settings(&mut out, &args),
             "printers" => {
+                let mine: Vec<String> = copal_core::user_presets()
+                    .map(|u| {
+                        u.printer_files()
+                            .into_iter()
+                            .filter_map(|(_, p)| p.ok().map(|p| p.id))
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 for p in &library().printers {
                     let mark = if self.session.doc.printer.as_deref() == Some(&p.id) {
                         "*"
                     } else {
                         " "
                     };
+                    let yours = if mine.contains(&p.id) {
+                        "  (yours)"
+                    } else {
+                        ""
+                    };
                     out.info(format!(
-                        "{mark} {:<28} {}  {}×{} px  .{}  {:?}",
+                        "{mark} {:<28} {}  {}×{} px  .{}  {:?}{yours}",
                         p.id,
                         p.name(),
                         p.screen.resolution[0],
@@ -405,14 +470,294 @@ impl Shell {
         }
     }
 
+    /// `hollow [id|all]`: hollows models and says what it did.
+    fn hollow(&mut self, out: &mut Out, args: &[String]) {
+        let h = self.session.doc.settings.hollow;
+        for id in self.targets(out, args.first().map(String::as_str)) {
+            let done = copal_core::prepare::hollow_object_detailed(
+                &self.session.doc,
+                id,
+                h.wall_thickness_mm,
+                h.voxel_mm,
+            );
+            let r = match done {
+                Ok(r) => r,
+                Err(e) => {
+                    out.err(e);
+                    continue;
+                }
+            };
+            let mut note = format!(
+                "[{id}] hollow: {:.1} ml of resin saved, walls {} mm",
+                r.volume_ml, h.wall_thickness_mm
+            );
+            if r.cavities > 1 {
+                note.push_str(&format!(", {} separate hollows", r.cavities));
+            }
+            if r.pockets_filled > 0 {
+                note.push_str(&format!(", {} small pockets filled", r.pockets_filled));
+            }
+            if r.voxel > h.voxel_mm + 1e-4 {
+                note.push_str(&format!(", {:.2} mm voxels (big model)", r.voxel));
+            }
+            let cmd = copal_core::prepare::Hollow {
+                id,
+                thickness: h.wall_thickness_mm,
+                voxel: h.voxel_mm,
+                precomputed: Some(Arc::new(r.cavity)),
+            };
+            match self.session.execute(Box::new(cmd)) {
+                Ok(()) => {
+                    out.info(note);
+                    out.info(format!(
+                        "    add drain holes so resin can flow out: holes auto {id}"
+                    ));
+                }
+                Err(e) => out.err(e),
+            }
+        }
+    }
+
+    /// `orient [id|all] [goal]`: turns models the best way up and says what changed.
+    fn orient(&mut self, out: &mut Out, args: &[String]) {
+        let mut goal = copal_core::supports::Goal::Balanced;
+        let mut who = None;
+        for a in args {
+            match copal_core::supports::Goal::parse(a) {
+                Some(g) => goal = g,
+                None => who = Some(a.as_str()),
+            }
+        }
+        for id in self.targets(out, who) {
+            let found = match copal_core::prepare::orient_object(&self.session.doc, id, goal) {
+                Ok(f) => f,
+                Err(e) => {
+                    out.err(e);
+                    continue;
+                }
+            };
+            let cmd = copal_core::prepare::Orient {
+                id,
+                goal,
+                precomputed: Some(found.transform),
+            };
+            match self.session.execute(Box::new(cmd)) {
+                Ok(()) => {
+                    let r = found.transform.rotation_deg;
+                    out.info(format!(
+                        "[{id}] turned to x={:.0}° y={:.0}° z={:.0}° ({})",
+                        r.x,
+                        r.y,
+                        r.z,
+                        goal.name()
+                    ));
+                    let (b, a) = (found.before, found.after);
+                    out.info(format!(
+                        "    biggest layer {:.0} → {:.0} mm², overhangs {:.0} → {:.0} mm², height {:.0} → {:.0} mm",
+                        b.peak_area, a.peak_area, b.overhang_area, a.overhang_area, b.height, a.height
+                    ));
+                }
+                Err(e) => out.err(e),
+            }
+        }
+    }
+
+    /// `prepare [id|all] [words]`: orientation, hollow, drain holes and supports in one step.
+    fn prepare(&mut self, out: &mut Out, args: &[String]) {
+        use copal_core::supports::{Goal, Mode};
+        let mut opts = copal_core::prepare::PrepareOptions::for_project(&self.session.doc);
+        let mut who = None;
+        for a in args {
+            match a.as_str() {
+                "hollow" => opts.hollow = true,
+                "solid" => opts.hollow = false,
+                "keep" | "no-orient" => opts.orient = None,
+                "no-holes" => opts.holes = false,
+                "no-supports" => opts.supports = None,
+                "islands" => opts.supports = Some(Mode::Islands),
+                other => match Goal::parse(other) {
+                    Some(g) => opts.orient = Some(g),
+                    None => who = Some(other),
+                },
+            }
+        }
+        for id in self.targets(out, who) {
+            let done = match copal_core::prepare::prepare_object(&self.session.doc, id, opts) {
+                Ok(d) => d,
+                Err(e) => {
+                    out.err(e);
+                    continue;
+                }
+            };
+            let (notes, warnings) = (done.notes.clone(), done.warnings.clone());
+            let cmd = copal_core::prepare::AutoPrepare {
+                id,
+                opts,
+                precomputed: Some(Arc::new(done)),
+            };
+            match self.session.execute(Box::new(cmd)) {
+                Ok(()) => {
+                    out.info(format!("[{id}] ready to print:"));
+                    for n in notes {
+                        out.info(format!("    {n}"));
+                    }
+                    for w in warnings {
+                        out.err(format!("    check: {w}"));
+                    }
+                }
+                Err(e) => out.err(e),
+            }
+        }
+    }
+
+    /// `holes [auto|clear|check] [id|all] [count]`; without an action lists them.
+    fn holes(&mut self, out: &mut Out, args: &[String]) {
+        let action = args.first().map(String::as_str).unwrap_or("list");
+        if action == "check" {
+            for id in self.targets(out, args.get(1).map(String::as_str)) {
+                let holes = self
+                    .session
+                    .doc
+                    .object(id)
+                    .map_or(0, |o| o.prep.holes.len());
+                match copal_core::prepare::hole_check(&self.session.doc, id) {
+                    Ok(c) if c.ok() => out.info(format!("[{id}] {}", c.summary(holes))),
+                    Ok(c) => out.err(format!("[{id}] {}", c.summary(holes))),
+                    Err(e) => out.err(e),
+                }
+            }
+            return;
+        }
+        if action == "list" {
+            for o in self.session.doc.objects() {
+                let state = if o.prep.cavity.is_some() {
+                    "hollow"
+                } else {
+                    "solid"
+                };
+                out.info(format!(
+                    "[{}] {} — {state}, {} drain holes",
+                    o.id,
+                    o.name,
+                    o.prep.holes.len()
+                ));
+                let check =
+                    copal_core::prepare::hole_check(&self.session.doc, o.id).unwrap_or_default();
+                for (i, h) in o.prep.holes.iter().enumerate() {
+                    out.info(format!(
+                        "    {i}: {} mm wide, {:.1} mm deep{}",
+                        h.diameter,
+                        h.depth,
+                        if check.blind.contains(&i) {
+                            " — ends in the wall"
+                        } else {
+                            ""
+                        }
+                    ));
+                }
+                if o.prep.cavity.is_some() && !check.ok() {
+                    out.err(format!("    {}", check.summary(o.prep.holes.len())));
+                }
+            }
+            return;
+        }
+        let count = args.get(2);
+        for id in self.targets(out, args.get(1).map(String::as_str)) {
+            let line = match (action, count) {
+                ("auto", Some(n)) => format!("holes.auto id={id} count={n}"),
+                ("auto", None) => format!("holes.auto id={id}"),
+                ("clear", _) => format!("holes.clear id={id}"),
+                (other, _) => {
+                    return out.err(format!(
+                        "unknown action `{other}`: list, auto, clear, check"
+                    ));
+                }
+            };
+            let before = self.session.history.revision();
+            self.exec(out, &line);
+            if self.session.history.revision() != before
+                && let Some(o) = self.session.doc.object(id)
+            {
+                out.info(format!("[{id}] {} drain holes", o.prep.holes.len()));
+                if action == "auto"
+                    && let Ok(c) = copal_core::prepare::hole_check(&self.session.doc, id)
+                    && !c.ok()
+                {
+                    out.err(format!("    {}", c.summary(o.prep.holes.len())));
+                }
+            }
+        }
+    }
+
+    /// `overhangs [id|all]`: what the red faces of the overhang view show, as numbers.
+    fn overhangs(&self, out: &mut Out, args: &[String]) {
+        let angle = self.session.doc.settings.supports.overhang_angle_deg;
+        for id in self.targets(out, args.first().map(String::as_str)) {
+            match copal_core::prepare::overhang_report(&self.session.doc, id) {
+                Ok(o) if o.contacts.is_empty() => out.info(format!(
+                    "[{id}] nothing hangs over at {angle}°: it prints without supports"
+                )),
+                Ok(o) => {
+                    out.info(format!(
+                        "[{id}] {:.1} mm² hang over at {angle}°, in {} separate areas",
+                        o.area, o.regions
+                    ));
+                    out.info(format!(
+                        "    {} lowest points, {:.1} mm of edges to hold, {} places for supports",
+                        o.minima,
+                        o.edge_length,
+                        o.contacts.len()
+                    ));
+                    out.info(format!("    add them with: supports auto {id}"));
+                }
+                Err(e) => out.err(e),
+            }
+        }
+    }
+
+    /// `settings theme=art mode=light gizmo=1.2`: shows and changes the app settings, the same
+    /// file the apps and `copal-cli settings` use.
+    fn app_settings(out: &mut Out, args: &[String]) {
+        let path = match copal_core::Settings::path() {
+            Ok(p) => p,
+            Err(e) => return out.err(e),
+        };
+        let mut s = match copal_core::Settings::load_from(&path) {
+            Ok(s) => s,
+            Err(e) => return out.err(format!("{}: {e}", path.display())),
+        };
+        let mut changed = false;
+        for a in args {
+            let Some((key, value)) = a.split_once('=') else {
+                continue;
+            };
+            if let Err(e) = s.set(key, value) {
+                return out.err(e);
+            }
+            changed = true;
+        }
+        if changed && let Err(e) = s.save_to(&path) {
+            return out.err(e);
+        }
+        for (key, values) in copal_core::Settings::KEYS {
+            out.info(format!(
+                "{key:<6} = {:<8} ({values})",
+                s.get(key).unwrap_or_default()
+            ));
+        }
+    }
+
     fn settings(&self, out: &mut Out, args: &[String]) {
+        if args.iter().any(|a| a.contains('=')) || args.first().is_some_and(|a| a == "app") {
+            return Self::app_settings(out, args);
+        }
         let sections: Vec<Section> = match args.first() {
             None => Section::ALL.to_vec(),
             Some(name) => match Section::ALL.iter().find(|s| s.name() == name) {
                 Some(s) => vec![*s],
                 None => {
                     return out.err(format!(
-                        "no section `{name}`: use print, supports, hollow or layout"
+                        "no section `{name}`: use print, supports, hollow, layout or app"
                     ));
                 }
             },
@@ -457,21 +802,29 @@ impl Shell {
         }
         match action {
             "folder" => {
-                return match user.ensure_folder(Kind::Resin) {
-                    Ok(dir) => {
-                        out.info(format!("Presets: {}", user.dir.display()));
-                        out.info(format!(
-                            "Resins:  {}  (drop .toml files here, README.txt shows the format)",
+                out.info(format!("Presets:  {}", user.dir.display()));
+                // Printer templates and resin templates each have their own folder.
+                for (kind, what) in [(Kind::Printer, "Printers:"), (Kind::Resin, "Resins:")] {
+                    match user.ensure_folder(kind) {
+                        Ok(dir) => out.info(format!(
+                            "{what:<9} {}  (drop .toml files here, README.txt shows the format)",
                             dir.display()
-                        ));
+                        )),
+                        Err(e) => out.err(e),
                     }
-                    Err(e) => out.err(e),
-                };
+                }
+                return;
             }
             "reload" => {
                 let problems = copal_core::reload_user_library();
-                let n = user.resin_files().iter().filter(|(_, r)| r.is_ok()).count();
-                out.info(format!("Personal resins: {n}"));
+                let printers = user
+                    .printer_files()
+                    .iter()
+                    .filter(|(_, p)| p.is_ok())
+                    .count();
+                let resins = user.resin_files().iter().filter(|(_, r)| r.is_ok()).count();
+                out.info(format!("Personal printers: {printers}"));
+                out.info(format!("Personal resins: {resins}"));
                 for p in problems {
                     out.err(format!("skipped {p}"));
                 }
@@ -482,8 +835,19 @@ impl Shell {
                     return out.err("usage: presets import <file.toml>…");
                 }
                 for file in &args[1..] {
-                    match user.import_resin(Path::new(file)) {
-                        Ok((r, dest)) => {
+                    match user.import(Path::new(file)) {
+                        Ok(Imported::Printer(p, dest)) => {
+                            out.info(format!(
+                                "Imported printer {} ({})",
+                                p.name(),
+                                dest.display()
+                            ));
+                            out.info(format!(
+                                "Use it: project.set_printer printer={}",
+                                quote(&p.id)
+                            ));
+                        }
+                        Ok(Imported::Resin(r, dest)) => {
                             out.info(format!("Imported {} ({})", r.title(), dest.display()));
                             if let Some(p) = &self.session.doc.printer
                                 && r.profile_for(p).is_none()
@@ -543,6 +907,9 @@ impl Shell {
         match action {
             "save" => {
                 let saved = match kind {
+                    Kind::Printer => self
+                        .printer_preset(&name)
+                        .and_then(|p| user.save(kind, &name, &p).map_err(|e| e.to_string())),
                     Kind::Resin => self
                         .resin_preset_with(&name, &meta)
                         .and_then(|r| user.save(kind, &name, &r).map_err(|e| e.to_string())),
@@ -554,7 +921,7 @@ impl Shell {
                 };
                 match saved {
                     Ok(path) => {
-                        if kind == Kind::Resin {
+                        if matches!(kind, Kind::Printer | Kind::Resin) {
                             copal_core::set_library(copal_core::load_user_library());
                         }
                         out.info(format!(
@@ -568,6 +935,15 @@ impl Shell {
             }
             "load" => {
                 let line = match kind {
+                    Kind::Printer => {
+                        copal_core::set_library(copal_core::load_user_library());
+                        let id = if name.contains('/') {
+                            name.clone()
+                        } else {
+                            format!("my/{}", slug(&name))
+                        };
+                        Ok(format!("project.set_printer printer={}", quote(&id)))
+                    }
                     Kind::Resin => {
                         copal_core::set_library(copal_core::load_user_library());
                         Ok(format!(
@@ -596,6 +972,23 @@ impl Shell {
                         if self.session.history.revision() != before {
                             out.info(format!("Loaded {kind_name} preset `{name}`"));
                         }
+                    }
+                    Err(e) => out.err(e),
+                }
+            }
+            "delete" if kind == Kind::Printer => {
+                let id = if name.contains('/') {
+                    name.clone()
+                } else {
+                    format!("my/{}", slug(&name))
+                };
+                let result = user
+                    .delete_printer(&id)
+                    .or_else(|_| user.delete(kind, &name).map(|()| PathBuf::from(&name)));
+                match result {
+                    Ok(path) => {
+                        copal_core::reload_user_library();
+                        out.info(format!("Deleted printer `{name}` ({})", path.display()))
                     }
                     Err(e) => out.err(e),
                 }
@@ -630,6 +1023,27 @@ impl Shell {
                 "unknown action `{other}`: list, save, load, delete, import, folder or reload"
             )),
         }
+    }
+
+    /// The printer of the project as a personal printer template called `name`. The file can
+    /// then be changed by hand: screen, build height, file format.
+    pub fn printer_preset(&self, name: &str) -> Result<Printer, String> {
+        let id = self
+            .session
+            .doc
+            .printer
+            .clone()
+            .ok_or("choose a printer first")?;
+        let mut p = library()
+            .printer(&id)
+            .cloned()
+            .ok_or_else(|| format!("unknown printer `{id}`"))?;
+        let based_on = format!("{} ({})", p.name(), p.id);
+        p.sources.insert("based_on".into(), based_on);
+        p.id = format!("my/{}", slug(name));
+        p.model = name.trim().to_string();
+        p.status = copal_core::presets::Status::Experimental;
+        Ok(p)
     }
 
     /// The current print settings as a personal resin for the current printer.
@@ -800,6 +1214,18 @@ impl Shell {
     }
 
     fn supports(&mut self, out: &mut Out, args: &[String]) {
+        // `supports 1` and `supports all` mean `supports auto 1` and `supports auto all`.
+        let short = args
+            .first()
+            .is_some_and(|a| a == "all" || a.parse::<u64>().is_ok());
+        let args: Vec<String> = if short {
+            std::iter::once("auto".to_string())
+                .chain(args.iter().cloned())
+                .collect()
+        } else {
+            args.to_vec()
+        };
+        let args = &args[..];
         let action = args.first().map(String::as_str).unwrap_or("list");
         if action == "list" {
             for o in self.session.doc.objects() {
@@ -893,7 +1319,39 @@ impl Shell {
                         .map(|k| format!("{k}="))
                         .collect()
                 } else if head == "settings" {
-                    Section::ALL.iter().map(|s| s.name().to_string()).collect()
+                    Section::ALL
+                        .iter()
+                        .map(|s| s.name().to_string())
+                        .chain(["app", "theme=", "mode=", "gizmo="].map(String::from))
+                        .collect()
+                } else if head == "supports" {
+                    ["auto", "islands", "clear", "list", "all"]
+                        .map(String::from)
+                        .to_vec()
+                } else if head == "holes" {
+                    ["auto", "clear", "check", "list", "all"]
+                        .map(String::from)
+                        .to_vec()
+                } else if head == "orient" {
+                    ["balanced", "strong", "supports", "fast", "all"]
+                        .map(String::from)
+                        .to_vec()
+                } else if head == "prepare" {
+                    [
+                        "hollow",
+                        "solid",
+                        "keep",
+                        "balanced",
+                        "strong",
+                        "supports",
+                        "fast",
+                        "islands",
+                        "no-supports",
+                        "no-holes",
+                        "all",
+                    ]
+                    .map(String::from)
+                    .to_vec()
                 } else if head == "presets" {
                     [
                         "save", "load", "delete", "list", "import", "folder", "reload",
@@ -1097,6 +1555,105 @@ mod tests {
     }
 
     #[test]
+    fn prepare_from_the_shell() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = shell(dir.path());
+        s.run("object.add_cube size=20");
+        s.run("object.move id=1 x=25");
+        assert!(text(&s.run("overhangs")).contains("nothing hangs over"));
+        s.run("center");
+        s.run("drop 1");
+        let t = s.session.doc.objects()[0].transform.translation;
+        assert!(t.length() < 1e-3, "{t}");
+        s.run("object.rotate id=1 x=33 y=-16");
+        let o = text(&s.run("overhangs 1"));
+        assert!(o.contains("400.0 mm² hang over at 45°"), "{o}");
+        assert!(matches!(s.run("overhangs 7")[0], Reply::Error(_)));
+
+        assert!(matches!(s.run("holes auto")[0], Reply::Error(_)));
+        let h = text(&s.run("hollow"));
+        assert!(h.contains("ml of resin saved"), "{h}");
+        assert!(text(&s.run("holes auto all 2")).contains("[1] 2 drain holes"));
+        assert!(text(&s.run("holes")).contains("hollow, 2 drain holes"));
+        assert!(text(&s.run("holes clear")).contains("[1] 0 drain holes"));
+        s.run("unhollow");
+        assert!(s.session.doc.objects()[0].prep.cavity.is_none());
+        assert!(text(&s.run("unhollow")).contains("solid already"));
+        assert!(text(&s.run("holes")).contains("solid, 0 drain holes"));
+
+        s.run("object.add_cube size=5");
+        s.run("arrange 4");
+        let boxes: Vec<_> = s
+            .session
+            .doc
+            .objects()
+            .iter()
+            .map(|o| o.world_bounds().unwrap())
+            .collect();
+        let gap = (boxes[0].min.x - boxes[1].max.x).max(boxes[1].min.x - boxes[0].max.x);
+        assert!((gap - 4.0).abs() < 1e-3, "{gap}");
+        assert!(text(&s.run("help holes")).contains("drain holes"));
+    }
+
+    #[test]
+    fn orient_and_prepare_from_the_shell() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = shell(dir.path());
+        s.run("object.add_cube x=50 y=30 z=20");
+        // Orientation alone says what it changed and can be undone.
+        let o = text(&s.run("orient"));
+        assert!(
+            o.contains("[1] turned to") && o.contains("biggest layer"),
+            "{o}"
+        );
+        let flat = copal_core::Transform::default().rotation_deg;
+        assert_ne!(s.session.doc.objects()[0].transform.rotation_deg, flat);
+        s.run("undo");
+        assert!(matches!(s.run("orient 9")[0], Reply::Error(_)));
+
+        // Everything in one step: turned, hollow, two holes, supports, checked.
+        let r = s.run("prepare hollow");
+        let p = text(&r);
+        assert!(p.contains("[1] ready to print:"), "{p}");
+        assert!(
+            p.contains("turned to") && p.contains("ml of resin saved"),
+            "{p}"
+        );
+        assert!(
+            p.contains("2 drain holes") && p.contains("every island is supported"),
+            "{p}"
+        );
+        assert!(r.iter().all(|x| matches!(x, Reply::Info(_))), "{p}");
+        let obj = &s.session.doc.objects()[0];
+        assert!(obj.prep.cavity.is_some() && obj.prep.has_supports());
+        assert!(text(&s.run("holes check")).contains("2 holes open the hollow"));
+        // `supports 1` is short for `supports auto 1`.
+        assert!(text(&s.run("supports 1")).contains("[1] "));
+        // One undo step takes the whole preparation back.
+        s.run("undo");
+        s.run("undo");
+        let obj = &s.session.doc.objects()[0];
+        assert!(obj.prep.cavity.is_none() && !obj.prep.has_supports());
+        assert_eq!(obj.transform.rotation_deg, flat);
+
+        // Words pick the steps: keep the orientation, stay solid, islands only.
+        let p = text(&s.run("prepare 1 keep solid islands"));
+        assert!(
+            !p.contains("turned to") && !p.contains("resin saved"),
+            "{p}"
+        );
+        let obj = &s.session.doc.objects()[0];
+        assert_eq!(obj.transform.rotation_deg, flat);
+        assert!(obj.prep.cavity.is_none() && obj.prep.has_supports());
+        // A hollow without holes is reported.
+        s.run("hollow");
+        let h = s.run("holes check");
+        assert!(matches!(h[0], Reply::Error(_)), "{}", text(&h));
+        assert!(text(&h).contains("no drain hole"));
+        assert!(text(&s.run("help prepare")).contains("one step"));
+    }
+
+    #[test]
     fn completion() {
         let dir = tempfile::tempdir().unwrap();
         let s = shell(dir.path());
@@ -1110,6 +1667,9 @@ mod tests {
                 .contains(&"exposure_s=".to_string())
         );
         assert!(s.complete("object.move id=1 ").contains(&"x=".to_string()));
+        assert!(s.complete("holes a").contains(&"auto".to_string()));
+        assert!(s.complete("settings th").contains(&"theme=".to_string()));
+        assert!(s.complete("over").contains(&"overhangs".to_string()));
         assert_eq!(split_args(r#"a "b c" d"#), vec!["a", "b c", "d"]);
     }
 }

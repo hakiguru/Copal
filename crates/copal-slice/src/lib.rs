@@ -114,12 +114,18 @@ struct Seg {
     /// Start and end in pixel coordinates (row axis = y).
     a: Vec2,
     b: Vec2,
+    /// What the triangle belongs to: 0 body, 1 cut, 2 kept.
+    class: u8,
 }
 
 /// Prepared geometry, ready to render any layer.
 #[derive(Debug)]
 pub struct Slicer {
     tris: Vec<[Vec3; 3]>,
+    /// Triangles from here on are cuts (inside-out meshes that remove material).
+    cut_from: u32,
+    /// Triangles from here on are kept whatever the cuts say (supports).
+    keep_from: u32,
     /// For each bucket of `BUCKET_MM` height: triangles that reach into it.
     buckets: Vec<Vec<u32>>,
     pub raster: Raster,
@@ -139,6 +145,34 @@ impl Slicer {
         layer_height: f32,
         anti_aliasing: u32,
     ) -> Self {
+        Self::with_cuts(
+            triangles,
+            Vec::new(),
+            Vec::new(),
+            raster,
+            layer_height,
+            anti_aliasing,
+        )
+    }
+
+    /// Like [`Slicer::new`], for models with hollows and holes.
+    ///
+    /// `body` is the union of all its closed shells, so shells that overlap are fine. `cuts` are
+    /// inside-out meshes (a hollow, drain holes): what they enclose is removed from the body.
+    /// `keep` is printed whatever the cuts say (supports, also the ones inside a hollow).
+    pub fn with_cuts(
+        body: Vec<[Vec3; 3]>,
+        cuts: Vec<[Vec3; 3]>,
+        keep: Vec<[Vec3; 3]>,
+        raster: Raster,
+        layer_height: f32,
+        anti_aliasing: u32,
+    ) -> Self {
+        let cut_from = body.len() as u32;
+        let keep_from = cut_from + cuts.len() as u32;
+        let mut triangles = body;
+        triangles.extend(cuts);
+        triangles.extend(keep);
         let top = triangles
             .iter()
             .flat_map(|t| t.iter().map(|v| v.z))
@@ -166,6 +200,8 @@ impl Slicer {
         }
         Self {
             tris: triangles,
+            cut_from,
+            keep_from,
             buckets,
             raster,
             layer_height,
@@ -203,8 +239,15 @@ impl Slicer {
                 if pa == qa {
                     continue;
                 }
-                let k = (z - p.z) / (q.z - p.z);
-                let x = p + (q - p) * k;
+                // Always from the same end of the edge, so the two triangles that share it get
+                // the very same point and no sample falls between their segments.
+                let (lo, hi) = if (p.z, p.x, p.y) <= (q.z, q.x, q.y) {
+                    (p, q)
+                } else {
+                    (q, p)
+                };
+                let k = (z - lo.z) / (hi.z - lo.z);
+                let x = lo + (hi - lo) * k;
                 let x = self.raster.to_pixels(Vec2::new(x.x, x.y));
                 if qa {
                     up = Some(x);
@@ -213,7 +256,14 @@ impl Slicer {
                 }
             }
             if let (Some(a), Some(b)) = (down, up) {
-                segs.push(Seg { a, b });
+                let class = if ti < self.cut_from {
+                    0
+                } else if ti < self.keep_from {
+                    1
+                } else {
+                    2
+                };
+                segs.push(Seg { a, b, class });
             }
         }
         segs
@@ -245,7 +295,7 @@ impl Slicer {
         let mut out = vec![0u8; w];
         let mut active: Vec<usize> = Vec::new();
         let mut next = 0;
-        let mut xs: Vec<(f32, i32)> = Vec::new();
+        let mut xs: Vec<(f32, i32, u8)> = Vec::new();
 
         let mut emitted = 0usize; // pixels already sent to the sink
 
@@ -274,18 +324,21 @@ impl Slicer {
                     }
                     let t = (y - s.a.y) / (s.b.y - s.a.y);
                     let x = s.a.x + (s.b.x - s.a.x) * t;
-                    xs.push((x, if s.b.y > s.a.y { 1 } else { -1 }));
+                    xs.push((x, if s.b.y > s.a.y { 1 } else { -1 }, s.class));
                 }
                 if xs.len() < 2 {
                     continue;
                 }
                 xs.sort_unstable_by(|p, q| p.0.total_cmp(&q.0));
-                let mut wind = 0;
+                // Windings of the body, the cuts and the kept parts. A point prints when it is
+                // inside the body and in no cut, or inside a kept part.
+                let mut wind = [0i32; 3];
+                let filled = |w: &[i32; 3]| (w[0] > 0 && w[1] >= 0) || w[2] > 0;
                 let mut start = 0f32;
-                for &(x, d) in &xs {
-                    let before = wind > 0;
-                    wind += d * sign;
-                    let after = wind > 0;
+                for &(x, d, class) in &xs {
+                    let before = filled(&wind);
+                    wind[class as usize] += d * sign;
+                    let after = filled(&wind);
                     if !before && after {
                         start = x;
                     } else if before
@@ -428,6 +481,37 @@ mod tests {
     }
 
     #[test]
+    fn overlapping_shells_are_one_body_and_cuts_spare_what_is_kept() {
+        // Two boxes that overlap, a hollow (inside out) through both, and a post inside it.
+        let flip = |mut t: Vec<[Vec3; 3]>| {
+            for x in &mut t {
+                x.swap(1, 2);
+            }
+            t
+        };
+        let mut body = cube(Vec3::new(-4.0, -2.0, 0.0), Vec3::new(1.0, 2.0, 2.0));
+        body.extend(cube(Vec3::new(-1.0, -2.0, 0.0), Vec3::new(4.0, 2.0, 2.0)));
+        let cut = flip(cube(Vec3::new(-3.0, -1.0, -1.0), Vec3::new(3.0, 1.0, 3.0)));
+        let keep = cube(Vec3::new(-0.5, -0.5, 0.0), Vec3::new(0.5, 0.5, 2.0));
+        let s = Slicer::with_cuts(body, cut, keep, raster(), 0.1, 1);
+        let (img, stats) = s.layer_image(5);
+        let r = raster();
+        let at = |x: f32, y: f32| {
+            let p = r.to_pixels(Vec2::new(x, y));
+            img[p.y as usize * r.width as usize + p.x as usize]
+        };
+        assert_eq!(at(-3.5, 0.0), 255, "the wall");
+        assert_eq!(at(-2.0, 0.0), 0, "the hollow");
+        assert_eq!(at(-0.8, 0.0), 0, "the hollow where the shells overlap");
+        assert_eq!(at(0.0, 0.0), 255, "the post inside the hollow");
+        assert_eq!(at(0.0, 1.5), 255, "the wall where the shells overlap");
+        // 8 x 4 mm outside, 6 x 2 mm hollow, 1 x 1 mm post.
+        let px = r.width as f64 / r.size_mm().x as f64;
+        let area = stats.lit_pixels / (px * px);
+        assert!((area - 21.0).abs() < 0.6, "{area}");
+    }
+
+    #[test]
     fn box_fills_exactly_its_pixels() {
         let s = Slicer::new(
             cube(Vec3::new(-2.0, -1.0, 0.0), Vec3::new(2.0, 1.0, 1.0)),
@@ -517,5 +601,21 @@ mod tests {
         let (img, stats) = s.layer_image(10);
         assert_eq!(img.len(), 5000);
         assert_eq!(stats.bounds, None);
+    }
+
+    #[test]
+    fn faces_split_along_a_diagonal_leave_no_gap() {
+        // The side faces of a box are two triangles each. Where the cut crosses their shared
+        // diagonal, both must give the same point, or a row that lands there is lost.
+        let s = Slicer::new(
+            cube(Vec3::new(-15.0, -15.0, 1.0), Vec3::new(15.0, 15.0, 31.0)),
+            Raster::new([64, 64], [32.0, 32.0]),
+            0.5,
+            1,
+        );
+        for k in 2..62 {
+            let (_, stats) = s.layer_image(k);
+            assert_eq!(stats.lit_pixels, 3600.0, "layer {k}");
+        }
     }
 }

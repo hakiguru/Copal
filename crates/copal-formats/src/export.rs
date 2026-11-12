@@ -55,17 +55,36 @@ pub struct ExportReport {
     pub preview_size: u32,
 }
 
+/// The triangles of a scene in plate coordinates, by what they do in a slice.
+#[derive(Debug, Clone, Default)]
+pub struct SceneTriangles {
+    /// The models. Shells that overlap count once.
+    pub body: Vec<[Vec3; 3]>,
+    /// Hollows and drain holes, inside out: removed from the models.
+    pub cuts: Vec<[Vec3; 3]>,
+    /// Supports and rafts: printed whatever the cuts say.
+    pub keep: Vec<[Vec3; 3]>,
+}
+
+impl SceneTriangles {
+    /// What you see from outside: models and supports.
+    pub fn visible(&self) -> Vec<[Vec3; 3]> {
+        let mut v = self.body.clone();
+        v.extend_from_slice(&self.keep);
+        v
+    }
+}
+
 /// Every triangle of every object, in plate coordinates.
-pub fn scene_triangles(doc: &Document) -> Vec<[Vec3; 3]> {
-    let mut out = Vec::new();
+pub fn scene_triangles(doc: &Document) -> SceneTriangles {
+    let mut out = SceneTriangles::default();
     for o in doc.objects() {
         object_triangles(o, &mut out);
     }
     out
 }
 
-fn mesh_triangles(mesh: &copal_core::supports::geometry::SupportMesh, out: &mut Vec<[Vec3; 3]>) {
-    let m = &mesh.mesh;
+fn mesh_triangles(m: &copal_core::supports::Mesh, out: &mut Vec<[Vec3; 3]>) {
     out.extend(
         m.triangles
             .iter()
@@ -75,44 +94,35 @@ fn mesh_triangles(mesh: &copal_core::supports::geometry::SupportMesh, out: &mut 
 
 /// Everything one object adds to the slices: the model, its hollow inside (inside out), drain
 /// holes (inside out) and its supports with the raft.
-pub fn object_triangles(o: &copal_core::SceneObject, out: &mut Vec<[Vec3; 3]>) {
+pub fn object_triangles(o: &copal_core::SceneObject, out: &mut SceneTriangles) {
     let m = o.transform.matrix();
     let flip = m.determinant() < 0.0;
-    let mut add = |mesh: &copal_core::supports::geometry::SupportMesh, placed: bool| {
-        if placed {
-            mesh_triangles(mesh, out);
-            return;
-        }
+    let placed = |mesh: &copal_core::supports::Mesh, out: &mut Vec<[Vec3; 3]>| {
         let p: Vec<Vec3> = mesh
-            .mesh
             .positions
             .iter()
             .map(|v| m.transform_point3(*v))
             .collect();
-        out.extend(mesh.mesh.triangles.iter().map(|t| {
+        out.extend(mesh.triangles.iter().map(|t| {
             let (a, b, c) = (p[t[0] as usize], p[t[1] as usize], p[t[2] as usize]);
             // A mirrored object turns its triangles inside out; turn them back.
             if flip { [a, c, b] } else { [a, b, c] }
         }));
     };
-    let wrap = |mesh: copal_core::supports::Mesh| copal_core::supports::geometry::SupportMesh {
-        mesh,
-        ranges: Vec::new(),
-    };
-    add(&wrap((*o.mesh).clone()), false);
+    placed(&o.mesh, &mut out.body);
     if let Some(c) = &o.prep.cavity {
-        add(&wrap((**c).clone()), false);
+        placed(c, &mut out.cuts);
     }
     for h in &o.prep.holes {
         let point = m.transform_point3(h.point);
         let dir = m.transform_vector3(h.dir).normalize_or(Vec3::NEG_Z);
         let hole = copal_core::supports::hollow::drain_hole(point, dir, h.diameter, h.depth);
-        add(&wrap(hole), true);
+        mesh_triangles(&hole, &mut out.cuts);
     }
     if let Some(s) = &o.prep.supports {
-        add(
-            &copal_core::supports::build_mesh(s, o.transform.translation),
-            true,
+        mesh_triangles(
+            &copal_core::supports::build_mesh(s, o.transform.translation).mesh,
+            &mut out.keep,
         );
     }
 }
@@ -171,8 +181,11 @@ pub fn slicer_for(doc: &Document, printer: &Printer, settings: &PrintSettings) -
     let mut raster = Raster::new(printer.screen.resolution, printer.screen.size_mm);
     raster.mirror_x = printer.screen.mirror_x;
     raster.mirror_y = printer.screen.mirror_y;
-    Slicer::new(
-        scene_triangles(doc),
+    let t = scene_triangles(doc);
+    Slicer::with_cuts(
+        t.body,
+        t.cuts,
+        t.keep,
         raster,
         settings.exposure.layer_height_mm,
         settings.motion.anti_aliasing as u32,
@@ -253,7 +266,7 @@ pub fn export(
     let settings = doc.settings.print;
     let slicer = slicer_for(doc, &printer, &settings);
     let layers = slicer.layer_count();
-    let tris = scene_triangles(doc);
+    let tris = scene_triangles(doc).visible();
     let style = thumbnail::PreviewStyle::default();
     let big = thumbnail::render(&tris, goo::BIG_PREVIEW, goo::BIG_PREVIEW, style);
     let small = thumbnail::render(&tris, goo::SMALL_PREVIEW, goo::SMALL_PREVIEW, style);

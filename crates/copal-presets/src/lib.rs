@@ -2,7 +2,9 @@
 //!
 //! Built-in presets are the TOML files in `presets/`, compiled into the binary.
 //! Personal presets live in the user config folder (`<config>/presets/<kind>/<name>.toml`)
-//! and are never touched by updates.
+//! and are never touched by updates. Printer templates have their own folder
+//! (`presets/printers/`) and resin templates theirs (`presets/resins/`): every `.toml` file in
+//! them is one printer or one resin.
 
 pub mod settings;
 
@@ -31,10 +33,12 @@ pub enum PresetError {
     Write(#[from] toml::ser::Error),
     #[error("a preset name can not be empty")]
     EmptyName,
-    #[error("{0}: only Copal resin presets (.toml) can be imported")]
+    #[error("{0}: only Copal presets (.toml) can be imported")]
     NotToml(PathBuf),
     #[error("{0}: the resin has no settings (add a [[profiles]] section with a printer)")]
     NoProfiles(String),
+    #[error("{0}: {1}")]
+    BadPrinter(String, String),
 }
 
 /// Is a printer confirmed by a real print?
@@ -90,8 +94,13 @@ pub struct Motion {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Printer {
+    /// `brand/model`. Personal printers without an id get `my/<file name>`.
+    #[serde(default)]
     pub id: String,
+    #[serde(default)]
     pub brand: String,
+    /// Personal printers without a model name get their file name.
+    #[serde(default)]
     pub model: String,
     #[serde(default)]
     pub status: Status,
@@ -209,14 +218,21 @@ impl Library {
         Self::load_checked(user).0
     }
 
-    /// Like [`Library::load`], plus a message for every personal resin file that could not be
-    /// read, so the user learns why a file they dropped in the folder does not show up.
+    /// Like [`Library::load`], plus a message for every personal printer or resin file that
+    /// could not be read, so the user learns why a file they dropped in a folder does not show
+    /// up. A personal printer with the same id as a built-in one replaces it, like resins do.
     pub fn load_checked(user: Option<&UserPresets>) -> (Self, Vec<String>) {
         let mut lib = Self::builtin();
         let mut problems = Vec::new();
         if let Some(user) = user {
-            let (resins, bad) = user.load_resins();
+            let (printers, bad) = user.load_printers();
             problems = bad;
+            for p in printers {
+                lib.printers.retain(|x| x.id != p.id);
+                lib.printers.push(p);
+            }
+            let (resins, bad) = user.load_resins();
+            problems.extend(bad);
             for r in resins {
                 lib.resins.retain(|x| x.id != r.id);
                 lib.resins.push(r);
@@ -250,6 +266,8 @@ impl Library {
 /// Kinds of personal presets. Each kind is a folder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Kind {
+    /// A whole printer ([`Printer`]): screen, build height, file format.
+    Printer,
     /// A whole resin with its profiles ([`Resin`]).
     Resin,
     /// Exposure and layer settings ([`ExposureSettings`]).
@@ -262,7 +280,8 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 6] = [
+    pub const ALL: [Kind; 7] = [
+        Kind::Printer,
         Kind::Resin,
         Kind::Exposure,
         Kind::Motion,
@@ -273,6 +292,7 @@ impl Kind {
 
     pub fn folder(self) -> &'static str {
         match self {
+            Kind::Printer => "printers",
             Kind::Resin => "resins",
             Kind::Exposure => "exposure",
             Kind::Motion => "motion",
@@ -367,23 +387,28 @@ impl UserPresets {
         self.dir.join(kind.folder())
     }
 
-    /// Creates the folder of one kind and, for resins, a short README with the file format, so
-    /// someone who opens the folder knows what to put there. Returns the folder.
+    /// Creates the folder of one kind and, for printers and resins, a short README with the file
+    /// format, so someone who opens the folder knows what to put there. Returns the folder.
     pub fn ensure_folder(&self, kind: Kind) -> Result<PathBuf, PresetError> {
         let dir = self.folder(kind);
         std::fs::create_dir_all(&dir).map_err(|e| PresetError::Io(dir.clone(), e))?;
-        if kind == Kind::Resin {
+        let text = match kind {
+            Kind::Printer => Some(PRINTER_README),
+            Kind::Resin => Some(RESIN_README),
+            _ => None,
+        };
+        if let Some(text) = text {
             let readme = dir.join("README.txt");
             if !readme.exists() {
-                std::fs::write(&readme, RESIN_README).map_err(|e| PresetError::Io(readme, e))?;
+                std::fs::write(&readme, text).map_err(|e| PresetError::Io(readme, e))?;
             }
         }
         Ok(dir)
     }
 
-    /// Every `.toml` file in the resin folder, as it is named on disk, with what it holds.
-    pub fn resin_files(&self) -> Vec<(PathBuf, Result<Resin, String>)> {
-        let mut files: Vec<PathBuf> = std::fs::read_dir(self.folder(Kind::Resin))
+    /// The `.toml` files in the folder of one kind, sorted by name.
+    fn toml_files(&self, kind: Kind) -> Vec<PathBuf> {
+        let mut files: Vec<PathBuf> = std::fs::read_dir(self.folder(kind))
             .into_iter()
             .flatten()
             .flatten()
@@ -395,12 +420,85 @@ impl UserPresets {
             .collect();
         files.sort();
         files
+    }
+
+    /// Every `.toml` file in the printer folder, as it is named on disk, with what it holds.
+    pub fn printer_files(&self) -> Vec<(PathBuf, Result<Printer, String>)> {
+        self.toml_files(Kind::Printer)
             .into_iter()
             .map(|path| {
-                let stem = path
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_default();
+                let stem = file_stem(&path);
+                let p = std::fs::read_to_string(&path)
+                    .map_err(|e| e.to_string())
+                    .and_then(|text| parse_printer(&stem, &text).map_err(|e| e.to_string()));
+                (path, p)
+            })
+            .collect()
+    }
+
+    /// All personal printers, and a message for each file that could not be read.
+    /// Missing ids, brands and model names are filled in from the file name.
+    pub fn load_printers(&self) -> (Vec<Printer>, Vec<String>) {
+        let mut printers = Vec::new();
+        let mut problems = Vec::new();
+        for (path, p) in self.printer_files() {
+            match p {
+                Ok(p) => printers.push(p),
+                Err(e) => problems.push(problem(&path, e)),
+            }
+        }
+        (printers, problems)
+    }
+
+    /// Deletes the file of a personal printer, found by its id. Returns the deleted file.
+    pub fn delete_printer(&self, id: &str) -> Result<PathBuf, PresetError> {
+        let path = self
+            .printer_files()
+            .into_iter()
+            .find(|(_, p)| p.as_ref().is_ok_and(|p| p.id == id))
+            .map(|(p, _)| p)
+            .ok_or_else(|| {
+                PresetError::Io(
+                    self.folder(Kind::Printer).join(id),
+                    std::io::ErrorKind::NotFound.into(),
+                )
+            })?;
+        std::fs::remove_file(&path).map_err(|e| PresetError::Io(path.clone(), e))?;
+        Ok(path)
+    }
+
+    /// Copies a printer template file into the printer folder after checking that it reads. The
+    /// file keeps its name (and its comments). Returns the printer and where it went.
+    pub fn import_printer(&self, file: &Path) -> Result<(Printer, PathBuf), PresetError> {
+        let (stem, text) = read_preset_file(file)?;
+        let printer = parse_printer(&stem, &text)?;
+        let dir = self.ensure_folder(Kind::Printer)?;
+        let dest = dir.join(format!("{}.toml", slug(&stem)));
+        if dest != file {
+            std::fs::write(&dest, &text).map_err(|e| PresetError::Io(dest.clone(), e))?;
+        }
+        Ok((printer, dest))
+    }
+
+    /// Imports a preset file of either kind: a file with a `[screen]` section is a printer,
+    /// anything else is read as a resin.
+    pub fn import(&self, file: &Path) -> Result<Imported, PresetError> {
+        let (_, text) = read_preset_file(file)?;
+        if is_printer_text(&text) {
+            let (p, dest) = self.import_printer(file)?;
+            Ok(Imported::Printer(p, dest))
+        } else {
+            let (r, dest) = self.import_resin(file)?;
+            Ok(Imported::Resin(r, dest))
+        }
+    }
+
+    /// Every `.toml` file in the resin folder, as it is named on disk, with what it holds.
+    pub fn resin_files(&self) -> Vec<(PathBuf, Result<Resin, String>)> {
+        self.toml_files(Kind::Resin)
+            .into_iter()
+            .map(|path| {
+                let stem = file_stem(&path);
                 let r = std::fs::read_to_string(&path)
                     .map_err(|e| e.to_string())
                     .and_then(|text| parse_resin(&stem, &text).map_err(|e| e.to_string()));
@@ -417,18 +515,7 @@ impl UserPresets {
         for (path, r) in self.resin_files() {
             match r {
                 Ok(r) => resins.push(r),
-                Err(e) => {
-                    let file = path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default();
-                    // Parse errors already name the file.
-                    problems.push(if e.starts_with(&file) || e.contains(".toml") {
-                        e
-                    } else {
-                        format!("{file}: {e}")
-                    });
-                }
+                Err(e) => problems.push(problem(&path, e)),
             }
         }
         (resins, problems)
@@ -454,22 +541,8 @@ impl UserPresets {
     /// Copies a resin preset file into the resin folder after checking that it reads. The file
     /// keeps its name (and its comments). Returns the resin and where it went.
     pub fn import_resin(&self, file: &Path) -> Result<(Resin, PathBuf), PresetError> {
-        if !file
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("toml"))
-        {
-            return Err(PresetError::NotToml(file.to_path_buf()));
-        }
-        let text =
-            std::fs::read_to_string(file).map_err(|e| PresetError::Io(file.to_path_buf(), e))?;
-        let stem = file
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
+        let (stem, text) = read_preset_file(file)?;
         let resin = parse_resin(&stem, &text)?;
-        if slug(&stem).is_empty() {
-            return Err(PresetError::EmptyName);
-        }
         let dir = self.ensure_folder(Kind::Resin)?;
         let dest = dir.join(format!("{}.toml", slug(&stem)));
         if dest != file {
@@ -511,6 +584,84 @@ impl UserPresets {
     }
 }
 
+/// What [`UserPresets::import`] added, and the file it went to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Imported {
+    Printer(Printer, PathBuf),
+    Resin(Resin, PathBuf),
+}
+
+fn file_stem(path: &Path) -> String {
+    path.file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// A message for a preset file that could not be read, starting with the file name.
+fn problem(path: &Path, e: String) -> String {
+    let file = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    // Parse errors already name the file.
+    if e.starts_with(&file) || e.contains(".toml") {
+        e
+    } else {
+        format!("{file}: {e}")
+    }
+}
+
+/// Reads a preset file to import: its name without `.toml` and its text.
+fn read_preset_file(file: &Path) -> Result<(String, String), PresetError> {
+    if !file
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("toml"))
+    {
+        return Err(PresetError::NotToml(file.to_path_buf()));
+    }
+    let text = std::fs::read_to_string(file).map_err(|e| PresetError::Io(file.to_path_buf(), e))?;
+    let stem = file_stem(file);
+    if slug(&stem).is_empty() {
+        return Err(PresetError::EmptyName);
+    }
+    Ok((stem, text))
+}
+
+/// Is this the text of a printer template? Printers have a `[screen]` section, resins never do.
+pub fn is_printer_text(text: &str) -> bool {
+    toml::from_str::<toml::Table>(text).is_ok_and(|t| t.get("screen").is_some_and(|v| v.is_table()))
+}
+
+/// Reads a personal printer file. `stem` is its file name without `.toml`.
+fn parse_printer(stem: &str, text: &str) -> Result<Printer, PresetError> {
+    let name = format!("{stem}.toml");
+    let mut p: Printer = parse(&name, text)?;
+    if p.model.trim().is_empty() {
+        p.model = stem.to_string();
+    }
+    if p.brand.trim().is_empty() {
+        p.brand = "My".into();
+    }
+    if p.id.trim().is_empty() {
+        p.id = format!("my/{}", slug(stem));
+    }
+    let bad = |reason: &str| Err(PresetError::BadPrinter(name.clone(), reason.to_string()));
+    if p.screen.resolution.contains(&0) {
+        return bad("`resolution` needs two numbers above 0 (pixels, X and Y)");
+    }
+    if p.screen.size_mm.iter().any(|v| !v.is_finite() || *v <= 0.0) {
+        return bad("`size_mm` needs two numbers above 0 (the display area in mm)");
+    }
+    if !p.build.height_mm.is_finite() || p.build.height_mm <= 0.0 {
+        return bad("`height_mm` must be above 0");
+    }
+    if p.file.format.trim().is_empty() {
+        return bad("`format` is empty (for example \"goo\")");
+    }
+    p.file.format = p.file.format.trim().trim_start_matches('.').to_lowercase();
+    Ok(p)
+}
+
 /// Reads a personal resin file. `stem` is its file name without `.toml`.
 fn parse_resin(stem: &str, text: &str) -> Result<Resin, PresetError> {
     let mut r: Resin = parse(&format!("{stem}.toml"), text)?;
@@ -531,6 +682,9 @@ fn parse_resin(stem: &str, text: &str) -> Result<Resin, PresetError> {
 
 /// What the README in the personal resin folder says.
 pub const RESIN_README: &str = include_str!("resin-readme.txt");
+
+/// What the README in the personal printer folder says.
+pub const PRINTER_README: &str = include_str!("printer-readme.txt");
 
 /// Built-in presets for one kind of settings, by name (for example `light`, `medium`, `heavy`).
 pub fn builtin_supports() -> [(&'static str, SupportSettings); 3] {
@@ -698,7 +852,86 @@ mod tests {
     }
 
     #[test]
+    fn printer_templates_in_their_own_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let user = UserPresets::new(dir.path().join("presets"));
+        let folder = user.ensure_folder(Kind::Printer).unwrap();
+        assert_eq!(folder, dir.path().join("presets").join("printers"));
+        assert!(folder.join("README.txt").exists());
+        assert_ne!(folder, user.folder(Kind::Resin));
+        // A minimal hand-written template dropped into the folder.
+        let text = "[screen]\nresolution = [1000, 500]\nsize_mm = [100.0, 50.0]\n\
+                    [build]\nheight_mm = 150.0\n[file]\nformat = \".GOO\"\n";
+        std::fs::write(folder.join("Test Printer.toml"), text).unwrap();
+        std::fs::write(
+            folder.join("broken.toml"),
+            "[screen]\nresolution = [0, 5]\n",
+        )
+        .unwrap();
+        std::fs::write(
+            folder.join("flat.toml"),
+            "[screen]\nresolution = [10, 10]\nsize_mm = [1.0, 1.0]\n\
+             [build]\nheight_mm = 0.0\n[file]\nformat = \"goo\"\n",
+        )
+        .unwrap();
+        let (lib, problems) = Library::load_checked(Some(&user));
+        let p = lib.printer("my/test-printer").expect("dropped template");
+        assert_eq!((p.brand.as_str(), p.model.as_str()), ("My", "Test Printer"));
+        assert_eq!(p.file.format, "goo");
+        assert_eq!(p.volume_mm(), [100.0, 50.0, 150.0]);
+        assert_eq!(p.status, Status::Experimental);
+        assert_eq!(problems.len(), 2, "{problems:?}");
+        assert!(problems.iter().any(|m| m.starts_with("broken.toml")));
+        assert!(problems.iter().any(|m| m.contains("height_mm")));
+        // Built-in printers are still there, and a template with their id replaces them.
+        let builtin = Library::builtin()
+            .printer("elegoo/saturn-4-ultra-16k")
+            .unwrap()
+            .clone();
+        let mut mine = builtin.clone();
+        mine.build.height_mm = 123.0;
+        user.save(Kind::Printer, "saturn", &mine).unwrap();
+        let lib = Library::load(Some(&user));
+        assert_eq!(lib.printer(&builtin.id).unwrap().build.height_mm, 123.0);
+        assert_eq!(
+            lib.printers.iter().filter(|p| p.id == builtin.id).count(),
+            1
+        );
+
+        // Import tells printers and resins apart and puts each in its own folder.
+        let src = dir.path().join("Shared Printer.toml");
+        std::fs::write(&src, format!("# from a friend\nbrand = \"Acme\"\n{text}")).unwrap();
+        match user.import(&src).unwrap() {
+            Imported::Printer(p, dest) => {
+                assert_eq!(p.id, "my/shared-printer");
+                assert_eq!(dest, folder.join("shared-printer.toml"));
+            }
+            other => panic!("{other:?}"),
+        }
+        let resin = dir.path().join("Some Resin.toml");
+        std::fs::write(&resin, "[[profiles]]\nprinter = \"my/test-printer\"\n").unwrap();
+        match user.import(&resin).unwrap() {
+            Imported::Resin(r, dest) => {
+                assert_eq!(r.id, "my/some-resin");
+                assert_eq!(dest, user.folder(Kind::Resin).join("some-resin.toml"));
+            }
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(
+            user.delete_printer("my/shared-printer").unwrap(),
+            folder.join("shared-printer.toml")
+        );
+        assert!(
+            Library::load(Some(&user))
+                .printer("my/shared-printer")
+                .is_none()
+        );
+    }
+
+    #[test]
     fn kinds_parse() {
+        assert_eq!(Kind::parse("printer"), Some(Kind::Printer));
+        assert_eq!(Kind::parse("printers"), Some(Kind::Printer));
         assert_eq!(Kind::parse("resin"), Some(Kind::Resin));
         assert_eq!(Kind::parse("supports"), Some(Kind::Supports));
         assert_eq!(Kind::parse("support"), Some(Kind::Supports));

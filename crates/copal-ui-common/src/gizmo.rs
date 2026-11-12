@@ -364,6 +364,10 @@ impl Drag {
                     f = round(f * 100.0, pct).max(pct) / 100.0;
                 }
                 t.scale[i] = self.start.scale[i] * f;
+                // Scale around the middle of the model (where the handles are), not around its
+                // origin, so the model does not slide away from the handles.
+                let off = self.start.translation - g.center;
+                t.translation = g.center + off + g.axes[i] * (off.dot(g.axes[i]) * (f - 1.0));
             }
             Handle::Uniform => {
                 let c = cam.project(rect, g.center)?;
@@ -372,6 +376,7 @@ impl Drag {
                     f = round(f * 100.0, pct).max(pct) / 100.0;
                 }
                 t.scale = self.start.scale * f;
+                t.translation = g.center + (self.start.translation - g.center) * f;
             }
         }
         Some(t)
@@ -477,6 +482,43 @@ mod tests {
             (t.rotation_deg.z - 90.0).abs() < 0.5,
             "{:?}",
             t.rotation_deg
+        );
+    }
+
+    #[test]
+    fn scaling_keeps_the_middle_of_the_model_in_place() {
+        let (cam, rect) = setup();
+        // A 20 mm cube: its origin is at the bottom, its middle 10 mm higher.
+        let start = Transform::default();
+        let center = Vec3::new(0.0, 0.0, 10.0);
+        let g = Gizmo::new(&cam, rect, center, Vec3::ZERO, 1.0, Mode::Scale);
+        let c = cam.project(rect, center).unwrap();
+        let drag = Drag::start(Handle::Uniform, g, start, &cam, rect, c + vec2(50.0, 0.0)).unwrap();
+        let t = drag.update(&cam, rect, c + vec2(100.0, 0.0), None).unwrap();
+        assert!(
+            (t.scale - Vec3::splat(2.0)).length() < 1e-4,
+            "{:?}",
+            t.scale
+        );
+        // Twice as big around the middle: the origin (bottom) goes 10 mm down.
+        assert!(
+            (t.translation - Vec3::new(0.0, 0.0, -10.0)).length() < 1e-3,
+            "{:?}",
+            t.translation
+        );
+        // One axis: only that axis grows, and again around the middle.
+        let tip = cam
+            .project(rect, center + Vec3::Z * g.length * 0.5)
+            .unwrap();
+        let drag = Drag::start(Handle::ScaleAxis(2), g, start, &cam, rect, tip).unwrap();
+        let far = cam.project(rect, center + Vec3::Z * g.length).unwrap();
+        let t = drag.update(&cam, rect, far, None).unwrap();
+        assert!((t.scale.z - 2.0).abs() < 0.02, "{:?}", t.scale);
+        assert_eq!((t.scale.x, t.scale.y), (1.0, 1.0));
+        assert!(
+            (t.translation.z + 10.0 * (t.scale.z - 1.0)).abs() < 1e-3,
+            "{:?}",
+            t.translation
         );
     }
 

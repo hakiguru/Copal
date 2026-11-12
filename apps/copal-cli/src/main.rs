@@ -96,6 +96,21 @@ enum Cmd {
         #[arg(long)]
         png: Option<PathBuf>,
     },
+    /// Save a picture of the plate as PNG: models grey, supports orange.
+    ///
+    /// Example: copal-cli render part.copal -o part.png --view under
+    Render {
+        file: PathBuf,
+        /// Where to save the picture. Default: next to the project, named after it.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// iso, front, back, left, right, top, bottom or under.
+        #[arg(long, default_value = "iso")]
+        view: String,
+        /// Width and height in pixels.
+        #[arg(long, default_value_t = 1200)]
+        size: u32,
+    },
     /// Run commands on a project and save it.
     ///
     /// Example: copal-cli run part.copal object.move id=1 x=10
@@ -253,6 +268,31 @@ fn run(cli: Cli) -> Result<(), String> {
             }))
         }
         Cmd::Inspect { file, layer, png } => inspect(&file, layer, png, cli.json),
+        Cmd::Render {
+            file,
+            output,
+            view,
+            size,
+        } => {
+            let session = open(&file)?;
+            let angle = copal_formats::thumbnail::ViewAngle::named(&view).ok_or_else(|| {
+                format!("unknown view `{view}`: iso, front, back, left, right, top, bottom, under")
+            })?;
+            let size = size.clamp(64, 8000);
+            let t = copal_formats::export::scene_triangles(&session.doc);
+            let rgb = copal_formats::thumbnail::render_parts(
+                &[(&t.body, [150, 156, 166]), (&t.keep, [236, 150, 40])],
+                size,
+                size,
+                [24, 26, 30],
+                angle,
+            );
+            let out = output.unwrap_or_else(|| file.with_extension("png"));
+            std::fs::write(&out, copal_formats::export::png(&rgb, size, size))
+                .map_err(|e| e.to_string())?;
+            println!("Saved {}", out.display());
+            Ok(())
+        }
         Cmd::Run {
             file,
             command,

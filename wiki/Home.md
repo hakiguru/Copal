@@ -14,7 +14,10 @@
 > the plate, set up exposure and lift, look through the layers and export an Elegoo `.goo` file.
 > Every export goes to the print history with a copy of the project. **0.2** adds auto and manual
 > supports with braces and a raft, hollowing, drain holes, your own resins and panels that fold
-> away. Pages for planned features say which version brings them.
+> away. **0.3** prepares a model in one click: auto orientation, hollowing with drain holes that
+> are checked, supports tied into a lattice. It also brings your own printers, tidy tool panels
+> and hotkeys for almost everything.
+> Pages for planned features say which version brings them.
 
 ## Welcome
 
@@ -38,7 +41,8 @@ This wiki is the user guide. It grows together with the app.
 |---|---|---|
 | [Interface overview](https://github.com/hakiguru/Copal/wiki/Interface-Overview) | [Supports](https://github.com/hakiguru/Copal/wiki/Supports) | [Hotkeys](https://github.com/hakiguru/Copal/wiki/Hotkeys) |
 | [Layout: place, rotate, scale](https://github.com/hakiguru/Copal/wiki/Layout) | [Hollowing and drain holes](https://github.com/hakiguru/Copal/wiki/Hollowing-and-Drain-Holes) | [Command line](https://github.com/hakiguru/Copal/wiki/Command-Line) |
-| [Prepare: checks, supports, hollowing](https://github.com/hakiguru/Copal/wiki/Prepare) | [Slice and export](https://github.com/hakiguru/Copal/wiki/Slice-and-Export) | [Project files](https://github.com/hakiguru/Copal/wiki/Project-Files) |
+| [Prepare: ready in one click](https://github.com/hakiguru/Copal/wiki/Prepare) | [Slice and export](https://github.com/hakiguru/Copal/wiki/Slice-and-Export) | [Project files](https://github.com/hakiguru/Copal/wiki/Project-Files) |
+| [Auto orientation](https://github.com/hakiguru/Copal/wiki/Auto-Orientation) | | |
 | [Editing models](https://github.com/hakiguru/Copal/wiki/Editing) | [Print history](https://github.com/hakiguru/Copal/wiki/Print-History) | [Resin presets](https://github.com/hakiguru/Copal/wiki/Resin-Presets) |
 
 ## Printers and resins
@@ -74,6 +78,10 @@ This wiki is the user guide. It grows together with the app.
 С версии 0.1 Copal нарезает модели в файлы `.goo` для Elegoo: импорт STL / OBJ / 3MF, гизмо для
 перемещения, поворота и масштаба, перетаскивание модели по столу, настройки смолы и печати,
 предпросмотр слоёв и история печати с копией проекта. В 0.2 появились авто- и ручные поддержки с распорками и рафтом, опустошение, дренажные отверстия и свои пресеты смол.
-Вики пока на английском; русский интерфейс и страницы появятся в 0.3.
+В 0.3 модель готовится к печати одной кнопкой: автоориентация, опустошение с дренажными
+отверстиями (с проверкой, что они открывают полость) и поддержки, связанные в решётку. Ручные
+поддержки присоединяются к уже стоящим. Ещё появились свои шаблоны принтеров, аккуратные панели
+инструментов и горячие клавиши почти на все действия (список по F1).
+Вики пока на английском; русский интерфейс и страницы появятся позже.
 
 </details>

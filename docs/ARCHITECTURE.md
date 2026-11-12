@@ -35,7 +35,7 @@ Built parts are described as they are; planned parts say so. Change this file wh
 |---|---|
 | `copal-core` | Project file, objects, transforms, project settings (print, supports, hollow, layout). **Command system**, undo/redo, app settings, print history (`prints.rs`), the preset library the commands use. |
 | `copal-mesh` | Mesh type (indexed triangles), import/export (STL, OBJ, 3MF, PLY), repair (holes, normals, non-manifold), booleans, plane cut, decimation, hollowing (voxel/SDF offset), drain holes, edit-mode operations. |
-| `copal-supports` | Overhang and island detection, support point sampling, auto supports (light/medium/heavy, tree/branch), manual editing, rafts, collision checks. |
+| `copal-supports` | Overhang and island detection, support point sampling, auto supports (light/medium/heavy), a lattice of braces, manual editing, rafts, collision checks, hollowing, drain holes, automatic orientation (`orient.rs`). |
 | `copal-slice` | Turns a scene into layer images. CPU rasterizer (scanline, multithreaded with `rayon`) and GPU path (`wgpu` compute). Anti-aliasing, blur, XY compensation (elephant foot, holes). |
 | `copal-formats` | One module per printer format: writer first, reader second. Thumbnails, layer encoding (RLE etc.), encryption where needed. |
 | `copal-presets` | Loads the printer and resin database (`presets/`), user presets, validation. |

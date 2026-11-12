@@ -94,12 +94,53 @@ Supports moved ahead of orientation: the owner needs them to print a complex fig
 
 ---
 
-## 0.3 — Orientation, calibration, more prepare tools
+## 0.3 — One-click prepare, orientation, smarter supports, hotkeys, printer templates (released)
 
-- [ ] Auto orientation: score rotations by overhang area, islands and peel area
-- [ ] Lay flat on a picked face
+Asked for by the owner after using 0.2: supports like the big slicers place them, fewer bugs when
+moving models, buttons in better places, templates for printers, keys for everything. Then, to
+print a bulky hollow part: the best angle, supports that hold each other, holes that work, and a
+panel where the first button you look for is the right one.
+
+- [x] Auto orientation (`object.orient`, `copal-supports/src/orient.rs`): about 700 directions
+      scored by biggest layer, growth, overhang and height; goals balanced / strong / supports / fast
+- [x] One-step prepare (`object.prepare`, `prepare`, Ctrl+P): orient → hollow → holes → supports →
+      checks, one undo step
+- [x] Supports tied into one lattice: every trunk braced to its three nearest neighbours plus a
+      spanning tree; 45° braces; tall supports get thicker
+- [x] Manual supports join a trunk next to them, or get braces to the trunks around them
+- [x] Hollow-aware supports: islands inside the hollow stand on its floor; a last-resort strut
+      for islands with no way down; supports hold the rim of a drain hole and keep out of it
+- [x] Drain holes: two per separate hollow, depth by itself for holes by click, `hole_check`
+      (closed hollows, blind holes, single hole)
+- [x] Slicer: body / cut / keep classes, so overlapping shells are one solid and hollows are cut
+      out of all of them; the two triangles of an edge give the same crossing point (no lost rows)
+- [x] Prepare panel in working order: Ready in one click, 1 Orientation, 2 Hollow, 3 Drain holes,
+      4 Supports; the support preset in use is outlined
+- [x] `copal-cli render`: a picture of the plate from the terminal
+
+- [x] Auto supports find lowest points, free rims of overhangs and downward ridges, then lay an
+      even honeycomb grid over overhangs (`find_overhangs`); the same model always gets the same set
+- [x] Parenting: close supports share a trunk
+- [x] Islands in tight spots get a short, thin support; island search scales with the model size
+- [x] `overhangs` report; faces on the plate are not overhangs
+- [x] Hollowing: small pockets filled, voxel size grows with the model, less memory, a report
+- [x] Auto drain holes at the lowest points of the hollow (`holes.auto`)
+- [x] Layout fixes: pick at the press point, scale around the middle, no jump in flat views,
+      never below the plate, back to the plate when supports are lost, cached bounds
+- [x] Models outside the build volume are marked; drag readout under the view
+- [x] Tool panels in rows of equal buttons; On plate, Center, Reset all
+- [x] Hotkeys for almost every action and a shortcut window (F1)
+- [x] Personal printer templates in `presets/printers/`, import that tells printers from resins
+- [x] Console: `step`, `select`, `view`, `tool`, `panel`, `hotkeys`; shell: `holes`, `overhangs`,
+      `unhollow`, `arrange`, `drop`, `center`; `object.center`, `object.reset`
+
+---
+
+## Next — Orientation, calibration, more prepare tools
+
+- [ ] Lay flat on a picked face; mark a face that must stay free of supports
 - [ ] Islands in the layer preview
-- [ ] Resin trap / suction cup check for hollow models
+- [ ] Blind drain holes shown in red in the 3D view
 - [ ] Exposure test generator + "pick the best chip" + save personal resin
       (`docs/CALIBRATION.md`), in both apps and the CLI
 - [ ] Selection filters (tips, bases, braces), drag a support tip to move it
@@ -134,7 +175,7 @@ and match or beat the recorded Lychee results.
 - [ ] "Magic button" (one model) and "batch button" (many models): orient → support → arrange
 - [ ] Hollowing 2D, 3D and voxel; hollow blockers (manual + automatic); infill / lattice
 - [ ] Internal supports for hollow models
-- [ ] Drain holes: place, size, auto suggest
+- [x] Drain holes: place, size (0.2), auto suggest (0.3)
 - [ ] XY compensation: elephant foot, hole compensation
 - [ ] Measuring tool, physical size mode, layer thickness preview
 - [ ] Print time, resin volume, weight and cost estimate

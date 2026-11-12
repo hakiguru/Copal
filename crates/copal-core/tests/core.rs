@@ -419,3 +419,216 @@ fn supports_hollow_and_holes_follow_the_object_and_undo() {
     s.run_line("object.unhollow id=1").unwrap();
     assert!(s.doc.objects()[0].prep.cavity.is_none());
 }
+
+#[test]
+fn center_reset_overhangs_and_automatic_drain_holes() {
+    let mut s = Session::new(Document::new("tools"));
+    s.run_script(
+        "object.add_cube size=20\nobject.move id=1 x=30 y=-12\nobject.scale id=1 factor=2",
+    )
+    .unwrap();
+    // Center: the middle of the plate, height unchanged.
+    s.run_line("object.center id=1").unwrap();
+    let b = s.doc.objects()[0].world_bounds().unwrap();
+    assert!(b.center().truncate().length() < 1e-3, "{:?}", b.center());
+    assert!(b.min.z.abs() < 1e-3);
+    s.history.undo(&mut s.doc).unwrap();
+    assert_eq!(s.doc.objects()[0].transform.translation.x, 30.0);
+
+    // Reset: rotation by default, scale or both on request, and the model stays on the plate.
+    s.run_line("object.rotate id=1 x=40 y=10").unwrap();
+    s.run_line("object.reset id=1").unwrap();
+    let t = s.doc.objects()[0].transform;
+    assert_eq!(t.rotation_deg, Vec3::ZERO);
+    assert_eq!(t.scale, Vec3::splat(2.0));
+    assert!(s.doc.objects()[0].world_bounds().unwrap().min.z.abs() < 1e-3);
+    s.run_line("object.mirror id=1 axis=x").unwrap();
+    s.run_line("object.reset id=1 what=all").unwrap();
+    assert_eq!(
+        s.doc.objects()[0].transform.scale,
+        Vec3::new(-1.0, 1.0, 1.0),
+        "a mirrored model stays mirrored"
+    );
+    assert!(s.run_line("object.reset id=1 what=everything").is_err());
+    s.history.undo(&mut s.doc).unwrap();
+    assert_eq!(s.doc.objects()[0].transform.scale.x, -2.0);
+    s.run_line("object.reset id=1 what=all").unwrap();
+
+    // A cube flat on the plate has nothing hanging over; tilted and lifted it has.
+    let flat = copal_core::prepare::overhang_report(&s.doc, ObjectId(1)).unwrap();
+    assert_eq!((flat.regions, flat.minima), (0, 0));
+    assert!(flat.contacts.is_empty());
+    s.run_script("object.rotate id=1 x=33 y=-16\nobject.move id=1 z=6")
+        .unwrap();
+    let tilted = copal_core::prepare::overhang_report(&s.doc, ObjectId(1)).unwrap();
+    assert_eq!((tilted.regions, tilted.minima), (1, 1));
+    assert!((tilted.area - 400.0).abs() < 1.0, "{}", tilted.area);
+
+    // Drain holes need a hollow; then they go in at the lowest points, straight down.
+    assert!(s.run_line("holes.auto id=1").is_err());
+    s.run_line("object.hollow id=1 thickness=2 voxel=0.6")
+        .unwrap();
+    s.run_line("holes.auto id=1 count=2 diameter=2.5").unwrap();
+    let o = &s.doc.objects()[0];
+    assert_eq!(o.prep.holes.len(), 2);
+    let m = o.transform.matrix();
+    for h in &o.prep.holes {
+        assert_eq!(h.diameter, 2.5);
+        let dir = m.transform_vector3(h.dir).normalize();
+        assert!(dir.z > 0.99, "holes go straight up into the model: {dir}");
+        let p = m.transform_point3(h.point);
+        assert!(p.z < 14.0, "near the bottom: {p}");
+    }
+    assert!(s.run_line("holes.auto id=1 count=40").is_err());
+    s.history.undo(&mut s.doc).unwrap();
+    assert!(s.doc.objects()[0].prep.holes.is_empty());
+}
+
+#[test]
+fn auto_orientation_turns_a_flat_brick_and_undoes() {
+    let mut s = Session::new(Document::new("orient"));
+    s.run_script("object.add_cube x=60 y=40 z=10\nobject.move id=1 x=25 y=-10\nsupports.auto id=1")
+        .unwrap();
+    let before = s.doc.objects()[0].clone();
+    let found =
+        copal_core::prepare::orient_object(&s.doc, ObjectId(1), Default::default()).unwrap();
+    // Lying flat, the whole 60 × 40 mm face is one layer and hangs over when lifted.
+    assert!(found.before.peak_area > 2000.0, "{:?}", found.before);
+    assert!(
+        found.after.peak_area < found.before.peak_area * 0.6,
+        "{:?}",
+        found.after
+    );
+    assert!(
+        found.after.growth < found.before.growth * 0.4,
+        "{:?}",
+        found.after
+    );
+
+    s.run_line("object.orient id=1").unwrap();
+    let o = &s.doc.objects()[0];
+    assert_eq!(o.transform, found.transform);
+    assert_ne!(o.transform.rotation_deg, Vec3::ZERO);
+    // On the plate, at the same place, and the old supports are gone.
+    let (b, old) = (o.world_bounds().unwrap(), before.world_bounds().unwrap());
+    assert!(b.min.z.abs() < 1e-3, "{}", b.min.z);
+    assert!((b.center().truncate() - old.center().truncate()).length() < 1e-2);
+    assert!(o.prep.supports.is_none());
+    assert_eq!(
+        s.history.undo(&mut s.doc).unwrap().as_deref(),
+        Some("object.orient id=1")
+    );
+    assert_eq!(s.doc.objects()[0], before);
+
+    // Other goals, and a clear error for a wrong one.
+    s.run_line("object.orient id=1 goal=fast").unwrap();
+    let low = s.doc.objects()[0].world_bounds().unwrap().size().z;
+    s.run_line("object.orient id=1 goal=strong").unwrap();
+    let tall = s.doc.objects()[0].world_bounds().unwrap().size().z;
+    assert!(low < tall, "{low} {tall}");
+    assert!(s.run_line("object.orient id=1 goal=pretty").is_err());
+    // A model bigger than the printer cannot be turned to fit.
+    s.run_line("object.scale id=1 factor=20").unwrap();
+    let e = s.run_line("object.orient id=1").unwrap_err().to_string();
+    assert!(e.contains("does not fit"), "{e}");
+}
+
+#[test]
+fn prepare_makes_a_model_ready_in_one_undo_step() {
+    let mut s = Session::new(Document::new("ready"));
+    s.run_line("object.add_cube x=40 y=30 z=24").unwrap();
+    let before = s.doc.clone();
+    s.run_line("object.prepare id=1 hollow=true").unwrap();
+    let o = &s.doc.objects()[0];
+    assert_ne!(o.transform.rotation_deg, Vec3::ZERO, "it was turned");
+    assert!(o.prep.cavity.is_some(), "it is hollow");
+    assert_eq!(o.prep.holes.len(), 2);
+    let set = o.prep.supports.clone().unwrap();
+    assert!(
+        set.supports.len() > 10 && !set.braces.is_empty(),
+        "{} supports, {} braces, turned {}",
+        set.supports.len(),
+        set.braces.len(),
+        o.transform.rotation_deg
+    );
+    assert!((o.world_bounds().unwrap().min.z - 6.0).abs() < 1e-3);
+    // The holes open the hollow and nothing is left in mid-air.
+    let check = copal_core::prepare::hole_check(&s.doc, ObjectId(1)).unwrap();
+    assert!(
+        check.ok() && check.cavities == 1 && check.single == 0,
+        "{check:?}"
+    );
+    assert!(
+        copal_core::prepare::unsupported_islands(&s.doc, ObjectId(1))
+            .unwrap()
+            .is_empty()
+    );
+    // No support stands in the mouth of a hole.
+    let m = o.transform.matrix();
+    for h in &o.prep.holes {
+        let mouth = m.transform_point3(h.point);
+        for x in &set.supports {
+            let tip = x.tip + o.transform.translation;
+            // The rim of a hole may be held, the hole itself stays free.
+            assert!(tip.distance(mouth) >= h.diameter / 2.0 * 0.9, "{x:?}");
+        }
+    }
+    // The recorded line does the same again on a fresh project.
+    let line = s.history.undo_labels().last().unwrap().to_string();
+    assert_eq!(
+        line,
+        "object.prepare id=1 orient=balanced hollow=true holes=true supports=auto"
+    );
+    let mut replay = Session::new(Document::new("ready"));
+    replay
+        .run_script(&format!("object.add_cube x=40 y=30 z=24\n{line}"))
+        .unwrap();
+    assert_eq!(replay.doc, s.doc);
+    // One step back and everything is as it was.
+    s.history.undo(&mut s.doc).unwrap();
+    assert_eq!(s.doc, before);
+
+    // Steps can be left out: keep the orientation and the model solid, islands only.
+    s.run_line("object.prepare id=1 orient=off supports=islands")
+        .unwrap();
+    let o = &s.doc.objects()[0];
+    assert_eq!(o.transform.rotation_deg, Vec3::ZERO);
+    assert!(o.prep.cavity.is_none() && o.prep.holes.is_empty());
+    assert!(o.prep.has_supports());
+}
+
+#[test]
+fn drain_holes_are_checked_and_reach_the_hollow_by_themselves() {
+    let mut s = Session::new(Document::new("holes"));
+    s.run_script("object.add_cube size=30\nobject.move id=1 z=6\nobject.hollow id=1 thickness=3")
+        .unwrap();
+    let id = ObjectId(1);
+    let check = |s: &Session| copal_core::prepare::hole_check(&s.doc, id).unwrap();
+    // No hole yet: the hollow is closed.
+    let c = check(&s);
+    assert_eq!((c.cavities, c.closed), (1, 1));
+    assert!(!c.ok());
+    assert!(c.summary(0).contains("no drain hole"), "{}", c.summary(0));
+
+    // A hole that is too short ends in the wall.
+    s.run_line("holes.add id=1 x=15 y=0 z=20 depth=1").unwrap();
+    let c = check(&s);
+    assert_eq!(c.blind, vec![0]);
+    assert_eq!(c.closed, 1);
+    // Without a depth the hole goes through the 3 mm wall.
+    s.run_line("holes.clear id=1").unwrap();
+    s.run_line("holes.add id=1 x=15 y=0 z=20").unwrap();
+    let h = s.doc.objects()[0].prep.holes[0];
+    assert!(h.depth > 3.0 && h.depth < 6.0, "{h:?}");
+    let c = check(&s);
+    assert!(c.ok(), "{c:?}");
+    assert_eq!(c.single, 1, "one hole drains slowly");
+    assert!(c.summary(1).contains("second hole"), "{}", c.summary(1));
+    s.run_line("holes.add id=1 x=-15 y=0 z=20").unwrap();
+    let c = check(&s);
+    assert!(c.ok() && c.single == 0);
+    assert_eq!(c.summary(2), "2 holes open the hollow");
+    // A solid model has nothing to check.
+    s.run_line("object.unhollow id=1").unwrap();
+    assert_eq!(check(&s), Default::default());
+}

@@ -15,7 +15,7 @@ pub enum Purpose {
     OpenProject,
     SaveProject,
     Export,
-    /// A resin preset file (`.toml`) to copy into the personal resin folder.
+    /// A printer or resin template (`.toml`) to copy into its personal folder.
     ImportResin,
 }
 
@@ -26,7 +26,7 @@ impl Purpose {
             Purpose::OpenProject => "Open project",
             Purpose::SaveProject => "Save project",
             Purpose::Export => "Export printer file",
-            Purpose::ImportResin => "Import resin preset",
+            Purpose::ImportResin => "Import printer or resin template",
         }
     }
 

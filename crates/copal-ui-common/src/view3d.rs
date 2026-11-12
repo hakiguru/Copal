@@ -78,6 +78,25 @@ fn pick(doc: &copal_core::Document, ray: &Ray) -> Option<(ObjectId, Vec3)> {
     best.map(|(t, id)| (id, ray.origin + ray.dir * t))
 }
 
+/// Where a model grabbed at `grab` is dragged to: the point of the plane at the grab height
+/// under the pointer. `None` when the pointer is above the horizon or the point is farther than
+/// `reach` from the middle of the plate (a view almost level with the plate sends it far away).
+fn plate_point(ray: &Ray, grab: Vec3, reach: f32) -> Option<Vec3> {
+    let hit = ray.hit_plane_z(grab.z)?;
+    (hit.truncate().length() <= reach).then_some(hit)
+}
+
+/// Is any part of the box outside the build volume (the plate and the height above it)?
+fn outside_volume(min: Vec3, max: Vec3, volume: Vec3) -> bool {
+    let eps = 1e-3;
+    min.x < -volume.x / 2.0 - eps
+        || max.x > volume.x / 2.0 + eps
+        || min.y < -volume.y / 2.0 - eps
+        || max.y > volume.y / 2.0 + eps
+        || min.z < -eps
+        || max.z > volume.z + eps
+}
+
 fn ray_hits_box(ray: &Ray, min: Vec3, max: Vec3) -> bool {
     let inv = ray.dir.recip();
     let t1 = (min - ray.origin) * inv;
@@ -87,7 +106,40 @@ fn ray_hits_box(ray: &Ray, min: Vec3, max: Vec3) -> bool {
     tmax >= tmin.max(0.0)
 }
 
+/// The camera positions of the buttons over the view (and of the keys 4 to 7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CameraView {
+    Iso,
+    Top,
+    Front,
+    Side,
+}
+
+impl CameraView {
+    pub fn parse(s: &str) -> Option<CameraView> {
+        match s {
+            "iso" => Some(CameraView::Iso),
+            "top" => Some(CameraView::Top),
+            "front" => Some(CameraView::Front),
+            "side" => Some(CameraView::Side),
+            _ => None,
+        }
+    }
+}
+
 impl Workspace {
+    /// Turns the camera to one of the fixed views and shows everything.
+    pub fn set_camera_view(&mut self, view: CameraView) {
+        let (yaw, pitch) = match view {
+            CameraView::Iso => (-28.0, 30.0),
+            CameraView::Top => (0.0, 89.9),
+            CameraView::Front => (0.0, 4.0),
+            CameraView::Side => (90.0, 4.0),
+        };
+        self.camera.set_view(yaw, pitch);
+        self.framed = false;
+    }
+
     fn gizmo_for(&self, rect: Rect) -> Option<(ObjectId, Gizmo)> {
         if self.step != Step::Layout {
             return None;
@@ -110,14 +162,31 @@ impl Workspace {
 
     /// Moves a previewed transform so the model's lowest point is on the plate.
     fn on_plate(&self, id: ObjectId, mut t: Transform) -> Transform {
-        if let Some(o) = self.doc().object(id) {
-            let mut probe = o.clone();
-            probe.transform = t;
-            if let Some(b) = probe.world_bounds() {
-                t.translation.z -= b.min.z;
-            }
+        if let Some(low) = self.lowest_point(id, t) {
+            t.translation.z -= low;
         }
         t
+    }
+
+    /// Height of the lowest point of an object if it had the transform `t`.
+    fn lowest_point(&self, id: ObjectId, t: Transform) -> Option<f32> {
+        let mut probe = self.doc().object(id)?.clone();
+        probe.transform = t;
+        probe.world_bounds().map(|b| b.min.z)
+    }
+
+    /// Names of the models that are not fully inside the build volume.
+    pub(crate) fn outside_plate(&self) -> Vec<String> {
+        let volume = self.doc().build_volume();
+        self.doc()
+            .objects()
+            .iter()
+            .filter(|o| {
+                o.world_bounds()
+                    .is_some_and(|b| outside_volume(b.min, b.max, volume))
+            })
+            .map(|o| o.name.clone())
+            .collect()
     }
 
     pub fn viewport(&mut self, ui: &mut Ui, look: &Look) {
@@ -144,6 +213,13 @@ impl Workspace {
         }
 
         let pointer = response.hover_pos().or(response.interact_pointer_pos());
+        // Where the button went down. A drag is only noticed a few pixels later, and by then
+        // the pointer may have left a thin handle: handles and models are picked from here.
+        if !response.is_pointer_button_down_on() {
+            self.press_pos = None;
+        } else if self.press_pos.is_none() {
+            self.press_pos = response.interact_pointer_pos();
+        }
         let gizmo = self.gizmo_for(rect);
         let snap_on = ui.input(|i| i.modifiers.command);
         let layout = self.doc().settings.layout;
@@ -163,8 +239,9 @@ impl Workspace {
 
         // Start a drag.
         if response.drag_started()
-            && let Some(p) = response.interact_pointer_pos()
+            && let Some(now) = response.interact_pointer_pos()
         {
+            let p = self.press_pos.unwrap_or(now);
             let (primary, shift) = ui.input(|i| (i.pointer.primary_down(), i.modifiers.shift));
             self.drag = if !primary || shift {
                 Some(ViewDrag::Pan)
@@ -174,11 +251,15 @@ impl Workspace {
                 && let Some(drag) = Drag::start(h, g, o.transform, &self.camera, rect, p)
             {
                 let on_plate = o.world_bounds().is_some_and(|b| b.min.z.abs() < 0.01);
+                // Rotating or scaling removes the supports, and with them the reason to hang
+                // in the air: such a model goes back to the plate too.
+                let loses_supports = o.prep.has_supports()
+                    && matches!(h, Handle::Ring(_) | Handle::ScaleAxis(_) | Handle::Uniform);
                 Some(ViewDrag::Gizmo {
                     id,
                     drag,
                     keep_on_plate: layout.keep_on_plate
-                        && on_plate
+                        && (on_plate || loses_supports)
                         && !matches!(h, Handle::Axis(2)),
                 })
             } else if self.step == Step::Layout
@@ -219,13 +300,22 @@ impl Workspace {
                     {
                         if keep_on_plate {
                             t = self.on_plate(id, t);
+                        } else if layout.keep_on_plate
+                            && matches!(drag.handle, Handle::Axis(2))
+                            && let Some(low) = self.lowest_point(id, t)
+                            && low < 0.0
+                        {
+                            // The up arrow lifts a model, but never pushes it into the plate.
+                            t.translation.z -= low;
                         }
                         self.preview_transform(id, t);
                     }
                 }
                 ViewDrag::Plate { id, start, grab } => {
+                    // Far enough to park a model next to the plate, not far enough to lose it.
+                    let reach = volume.x.max(volume.y) * 1.5;
                     if let Some(p) = pos
-                        && let Some(hit) = self.camera.ray(rect, p).hit_plane_z(grab.z)
+                        && let Some(hit) = plate_point(&self.camera.ray(rect, p), grab, reach)
                     {
                         let mut d = hit - grab;
                         if let Some((mm, _, _)) = snap
@@ -251,13 +341,18 @@ impl Workspace {
             }
         }
 
-        // Click: select, or use the Prepare tool.
+        // Click: select, or use the Prepare tool. A click on a handle of the gizmo is not a
+        // click on what lies behind it (it used to deselect the model).
         if response.clicked()
             && let Some(p) = response.interact_pointer_pos()
         {
-            let ray = self.camera.ray(rect, p);
-            let shift = ui.input(|i| i.modifiers.shift);
-            self.click(&ray, rect, p, shift);
+            let on_handle =
+                gizmo.is_some_and(|(_, g)| g.hit(&self.camera, rect, self.gizmo_mode, p).is_some());
+            if !on_handle {
+                let ray = self.camera.ray(rect, p);
+                let shift = ui.input(|i| i.modifiers.shift);
+                self.click(&ray, rect, p, shift);
+            }
         }
         if response.double_clicked() {
             self.framed = false;
@@ -275,6 +370,32 @@ impl Workspace {
 
         // Draw.
         let frame = self.build_frame(look, rect, volume);
+        // What the drag is doing, in numbers.
+        if let Some(text) = self.drag_readout() {
+            ui.painter().text(
+                rect.center_bottom() - vec2(0.0, 22.0),
+                Align2::CENTER_CENTER,
+                text,
+                FontId::monospace(13.0),
+                look.pal.accent_text,
+            );
+        }
+        // A model that will not print where it stands.
+        let outside = self.outside_plate();
+        if !outside.is_empty() {
+            let text = if outside.len() == 1 {
+                format!("{} is outside the build volume", outside[0])
+            } else {
+                format!("{} models are outside the build volume", outside.len())
+            };
+            ui.painter().text(
+                rect.center_bottom() - vec2(0.0, 42.0),
+                Align2::CENTER_CENTER,
+                text,
+                FontId::proportional(13.0),
+                look.pal.error,
+            );
+        }
         // Help line for the active Prepare tool.
         if self.step == Step::Prepare {
             let hint = match self.prep.tool {
@@ -365,6 +486,32 @@ impl Workspace {
         self.view_overlay(ui, look, rect);
     }
 
+    /// Position, angles or size of the model being dragged, for the line under the view.
+    fn drag_readout(&self) -> Option<String> {
+        let (id, handle) = match self.drag? {
+            ViewDrag::Gizmo { id, drag, .. } => (id, Some(drag.handle)),
+            ViewDrag::Plate { id, .. } => (id, None),
+            _ => return None,
+        };
+        let t = self.doc().object(id)?.transform;
+        Some(match handle {
+            Some(Handle::Ring(_)) => format!(
+                "rotation  X {:.1}°   Y {:.1}°   Z {:.1}°",
+                t.rotation_deg.x, t.rotation_deg.y, t.rotation_deg.z
+            ),
+            Some(Handle::ScaleAxis(_) | Handle::Uniform) => format!(
+                "scale  X {:.0} %   Y {:.0} %   Z {:.0} %",
+                t.scale.x.abs() * 100.0,
+                t.scale.y.abs() * 100.0,
+                t.scale.z.abs() * 100.0
+            ),
+            _ => format!(
+                "position  X {:.2}   Y {:.2}   Z {:.2} mm",
+                t.translation.x, t.translation.y, t.translation.z
+            ),
+        })
+    }
+
     /// A click in the 3D view (no drag).
     fn click(&mut self, ray: &Ray, rect: Rect, _pos: egui::Pos2, shift: bool) {
         use crate::prep::PrepTool;
@@ -416,9 +563,10 @@ impl Workspace {
                 if let Some((id, p)) = model_hit {
                     self.selected = Some(id);
                     let h = self.doc().settings.hollow;
+                    // No depth: the hole goes just through the wall of the hollow.
                     self.run(&format!(
-                        "holes.add id={id} x={} y={} z={} diameter={} depth={}",
-                        p.x, p.y, p.z, h.drain_hole_diameter_mm, h.drain_hole_depth_mm
+                        "holes.add id={id} x={} y={} z={} diameter={}",
+                        p.x, p.y, p.z, h.drain_hole_diameter_mm
                     ));
                 }
             }
@@ -482,19 +630,30 @@ impl Workspace {
         } else {
             rgb(p.object_selected)
         };
+        // A model that sticks out of the build volume is tinted red: it would not print.
+        let warn = |c: [f32; 3]| {
+            let e = rgb(p.error);
+            [0, 1, 2].map(|i| c[i] * 0.45 + e[i] * 0.55)
+        };
         let mut objects: Vec<DrawObject> = self
             .doc()
             .objects()
             .iter()
-            .map(|o| DrawObject {
-                mesh: o.mesh.clone(),
-                model: o.transform.matrix(),
-                color: if Some(o.id) == selected {
+            .map(|o| {
+                let color = if Some(o.id) == selected {
                     selected_color
                 } else {
                     rgb(p.object)
-                },
-                overhang: true,
+                };
+                let outside = o
+                    .world_bounds()
+                    .is_some_and(|b| outside_volume(b.min, b.max, volume));
+                DrawObject {
+                    mesh: o.mesh.clone(),
+                    model: o.transform.matrix(),
+                    color: if outside { warn(color) } else { color },
+                    overhang: true,
+                }
             })
             .collect();
         // Supports, the selected ones highlighted, and drain hole markers.
@@ -613,23 +772,20 @@ impl Workspace {
         ui.spacing_mut().item_spacing.x = 4.0;
         let small =
             |ui: &mut Ui, text: &str| widgets::button(ui, look, widgets::ButtonKind::Normal, text);
-        if small(ui, "Iso")
-            .on_hover_text("Front-left view from above")
+        for (view, name, hint) in [
+            (CameraView::Iso, "Iso", "Front-left view from above (4)"),
+            (CameraView::Top, "Top", "From above (5)"),
+            (CameraView::Front, "Front", "From the front (6)"),
+            (CameraView::Side, "Side", "From the right side (7)"),
+        ] {
+            if small(ui, name).on_hover_text(hint).clicked() {
+                self.set_camera_view(view);
+            }
+        }
+        if small(ui, "Fit")
+            .on_hover_text("Show the whole plate and every model (F or double-click)")
             .clicked()
         {
-            self.camera.set_view(-28.0, 30.0);
-            self.framed = false;
-        }
-        if small(ui, "Top").clicked() {
-            self.camera.set_view(0.0, 89.9);
-            self.framed = false;
-        }
-        if small(ui, "Front").clicked() {
-            self.camera.set_view(0.0, 4.0);
-            self.framed = false;
-        }
-        if small(ui, "Side").clicked() {
-            self.camera.set_view(90.0, 4.0);
             self.framed = false;
         }
         ui.add_space(10.0);
@@ -639,10 +795,26 @@ impl Workspace {
             "Overhangs"
         };
         if small(ui, label)
-            .on_hover_text("Color the faces that need supports (always on in Prepare)")
+            .on_hover_text("Color the faces that need supports (O). Always on in Prepare.")
             .clicked()
         {
             self.show_overhangs = !self.show_overhangs;
+        }
+        if self.step == Step::Layout {
+            // The three handles, right where the hand already is.
+            ui.add_space(10.0);
+            for (mode, name, key) in [
+                (gizmo::Mode::Move, "Move", "G"),
+                (gizmo::Mode::Rotate, "Rotate", "R"),
+                (gizmo::Mode::Scale, "Scale", "S"),
+            ] {
+                if crate::panels::tab_button(ui, look, self.gizmo_mode == mode, name, false)
+                    .on_hover_text(format!("{name} handles ({key}). Ctrl snaps."))
+                    .clicked()
+                {
+                    self.gizmo_mode = mode;
+                }
+            }
         }
         if self.step == Step::Layout && self.selected.is_some() {
             ui.add_space(10.0);
@@ -660,7 +832,7 @@ impl Workspace {
         if self.step == Step::Export {
             ui.add_space(10.0);
             if small(ui, "Layers")
-                .on_hover_text("Show the sliced layers")
+                .on_hover_text("Show the sliced layers (L)")
                 .clicked()
             {
                 self.preview.show = true;
@@ -690,8 +862,11 @@ impl Workspace {
         let factor = (2000.0 / full.width as f32).min(1.0);
         let raster = full.scaled(factor);
         let s = &doc.settings.print;
-        let slicer = Arc::new(Slicer::new(
-            copal_formats::export::scene_triangles(doc),
+        let t = copal_formats::export::scene_triangles(doc);
+        let slicer = Arc::new(Slicer::with_cuts(
+            t.body,
+            t.cuts,
+            t.keep,
             raster,
             s.exposure.layer_height_mm,
             4,
@@ -828,7 +1003,10 @@ impl Workspace {
                 .max_rect(bar)
                 .layout(egui::Layout::left_to_right(egui::Align::Center)),
         );
-        if widgets::button(&mut child, look, widgets::ButtonKind::Normal, "3D view").clicked() {
+        if widgets::button(&mut child, look, widgets::ButtonKind::Normal, "3D view")
+            .on_hover_text("Back to the 3D view (L)")
+            .clicked()
+        {
             self.preview.show = false;
         }
         if count > 1 {
@@ -865,5 +1043,38 @@ mod tests {
         }
         let empty = cam.project(rect, Vec3::new(-80.0, 40.0, 0.0)).unwrap();
         assert_eq!(pick(&s.doc, &cam.ray(rect, empty)), None);
+    }
+
+    #[test]
+    fn dragging_on_the_plate_follows_the_cursor_but_never_runs_away() {
+        let rect = Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 700.0));
+        let cam = Camera::default();
+        let grab = Vec3::new(10.0, -5.0, 8.0);
+        // The pointer over another point at the grab height: the model goes exactly there.
+        let to = Vec3::new(40.0, 20.0, 8.0);
+        let p = cam.project(rect, to).unwrap();
+        let hit = plate_point(&cam.ray(rect, p), grab, 300.0).unwrap();
+        assert!((hit - to).length() < 0.05, "{hit}");
+        // A view almost level with the plate: a few pixels up means hundreds of metres away.
+        let mut flat = Camera::default();
+        flat.set_view(0.0, 0.5);
+        let horizon = flat.project(rect, Vec3::new(0.0, 5000.0, 8.0)).unwrap();
+        assert_eq!(plate_point(&flat.ray(rect, horizon), grab, 300.0), None);
+        // Above the horizon there is no point on the plate at all.
+        let sky = egui::pos2(500.0, 5.0);
+        assert_eq!(plate_point(&flat.ray(rect, sky), grab, 300.0), None);
+    }
+
+    #[test]
+    fn models_outside_the_build_volume_are_found() {
+        let volume = Vec3::new(200.0, 100.0, 150.0);
+        let inside = (Vec3::new(-10.0, -10.0, 0.0), Vec3::new(10.0, 10.0, 20.0));
+        assert!(!outside_volume(inside.0, inside.1, volume));
+        let shift = |d: Vec3| outside_volume(inside.0 + d, inside.1 + d, volume);
+        assert!(shift(Vec3::new(95.0, 0.0, 0.0)), "over the right edge");
+        assert!(shift(Vec3::new(0.0, -45.0, 0.0)), "over the front edge");
+        assert!(shift(Vec3::new(0.0, 0.0, -1.0)), "under the plate");
+        assert!(shift(Vec3::new(0.0, 0.0, 131.0)), "too tall");
+        assert!(!shift(Vec3::new(90.0, 40.0, 130.0)), "just fits");
     }
 }

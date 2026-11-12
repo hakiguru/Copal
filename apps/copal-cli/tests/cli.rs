@@ -299,3 +299,108 @@ fn presets_save_and_load() {
     ok_env(d, &["presets", "delete", "exposure", "my-grey"]);
     assert!(!ok_env(d, &["presets"]).contains("my-grey"));
 }
+
+#[test]
+fn printer_and_resin_templates_have_their_own_folders() {
+    let tmp = tempfile::tempdir().unwrap();
+    let d = tmp.path();
+    let a = d.join("a.copal");
+    ok_env(
+        d,
+        &[
+            "new",
+            a.to_str().unwrap(),
+            "--printer",
+            "elegoo/saturn-4-ultra-16k",
+        ],
+    );
+    // Save the project's printer as a template, then find it in the list.
+    ok_env(
+        d,
+        &[
+            "presets",
+            "save",
+            a.to_str().unwrap(),
+            "printer",
+            "Garage Saturn",
+        ],
+    );
+    let printers = ok_env(d, &["printers"]);
+    assert!(
+        printers.contains("my/garage-saturn") && printers.contains("(yours)"),
+        "{printers}"
+    );
+    let file = d.join("config/presets/printers/garage-saturn.toml");
+    assert!(file.exists());
+    // A template written by hand, imported from somewhere else.
+    let shared = d.join("Shop Printer.toml");
+    std::fs::write(
+        &shared,
+        "brand = \"Shop\"\n[screen]\nresolution = [2000, 1000]\nsize_mm = [120.0, 60.0]\n\
+         [build]\nheight_mm = 100.0\n[file]\nformat = \"goo\"\n",
+    )
+    .unwrap();
+    let out = ok_env(d, &["presets", "import", shared.to_str().unwrap()]);
+    assert!(out.contains("Imported printer Shop Shop Printer"), "{out}");
+    assert!(d.join("config/presets/printers/shop-printer.toml").exists());
+    // Resins go to their own folder, next to the printers.
+    let resin = d.join("Shop Resin.toml");
+    std::fs::write(&resin, "[[profiles]]\nprinter = \"my/shop-printer\"\n").unwrap();
+    ok_env(d, &["presets", "import", resin.to_str().unwrap()]);
+    assert!(d.join("config/presets/resins/shop-resin.toml").exists());
+    let folders = ok_env(d, &["presets", "folder"]);
+    assert!(
+        folders.contains("printers") && folders.contains("resins"),
+        "{folders}"
+    );
+    // The imported printer works in a project, with its own plate size.
+    ok_env(
+        d,
+        &[
+            "presets",
+            "load",
+            a.to_str().unwrap(),
+            "printer",
+            "shop-printer",
+        ],
+    );
+    let info: serde_json::Value =
+        serde_json::from_str(&ok_env(d, &["--json", "info", a.to_str().unwrap()])).unwrap();
+    assert_eq!(info["printer"], "my/shop-printer");
+    assert!(ok_env(d, &["resins", "--printer", "my/shop-printer"]).contains("my/shop-resin"));
+    ok_env(d, &["presets", "delete", "printer", "garage-saturn"]);
+    assert!(!file.exists());
+    assert!(!ok_env(d, &["printers"]).contains("my/garage-saturn"));
+}
+
+#[test]
+fn prepare_and_render_from_the_terminal() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("box.copal");
+    let f = file.to_str().unwrap();
+    ok(&["new", f, "--printer", "elegoo/saturn-4-ultra-16k"]);
+    ok(&["run", f, "object.add_cube", "x=40", "y=30", "z=24"]);
+    ok(&["run", f, "object.prepare", "id=1", "hollow=true"]);
+    let info: serde_json::Value = serde_json::from_str(&ok(&["--json", "info", f])).unwrap();
+    let rot = &info["objects"][0]["rotation_deg"];
+    assert!(rot[0] != 0.0 || rot[1] != 0.0, "the box was turned: {rot}");
+
+    // A picture of the plate, from any side.
+    let png = dir.path().join("box.png");
+    let out = ok(&[
+        "render",
+        f,
+        "-o",
+        png.to_str().unwrap(),
+        "--view",
+        "front",
+        "--size",
+        "200",
+    ]);
+    assert!(out.contains("Saved"), "{out}");
+    let bytes = std::fs::read(&png).unwrap();
+    assert_eq!(&bytes[1..4], b"PNG");
+    let bad = cli(&["render", f, "--view", "sideways"]);
+    assert!(!bad.status.success());
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("unknown view"));
+}

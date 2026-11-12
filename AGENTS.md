@@ -124,14 +124,16 @@ crates/copal-core       document, Command system, undo/redo, text language, .cop
 crates/copal-mesh       triangle mesh, STL/OBJ/3MF import, binary mesh format, ray casts
 crates/copal-presets    printer/resin database (embedded from presets/), settings structs,
                         personal presets
-crates/copal-slice      layer rasterizer (non-zero winding, anti-aliasing, streaming rows)
+crates/copal-slice      layer rasterizer (body / cut / keep windings, anti-aliasing, streaming rows)
 crates/copal-formats    .goo writer/reader, thumbnails, export of a project
-crates/copal-supports   support generator (islands, overhangs, braces, raft), hollowing, drain holes
+crates/copal-supports   support generator (islands, overhangs, lattice of braces, raft), hollowing,
+                        drain holes, automatic orientation
 crates/copal-shell      shell commands shared by the GUI consoles and copal-cli shell
 crates/copal-ui-common  theme, crystal borders, widgets, OpenGL 3D view, gizmos, panels
 crates/copal-*          other engine crates (stubs until their milestone)
 apps/copal              full app        apps/copal-lite   Lite        apps/copal-cli   CLI
 tools/ui-shot.sh        screenshot an app in a virtual display (Xvfb) to check the UI
+                        (SHOT_KEYS="2 ctrl+p" presses keys first)
 ```
 
 ## Working on the code
@@ -143,9 +145,17 @@ tools/ui-shot.sh        screenshot an app in a virtual display (Xvfb) to check t
 - Slicing crates are optimized in debug builds too (see `[profile.dev.package…]` in `Cargo.toml`).
 - The `.goo` image orientation is confirmed against Lychee with the F test model (0.2). The format
   is called *stable* only after a real print on the Saturn 4 Ultra 16K.
-- Supports, hollowing and drain holes live in `copal-supports` (engine) and `copal-core/src/prepare.rs`
-  (commands); the Prepare tools panel is `copal-ui-common/src/prep.rs`. Supports are stored relative
-  to the object position; rotate / scale / mirror clear them, move keeps them.
+- Supports, hollowing, drain holes and orientation live in `copal-supports` (engine) and
+  `copal-core/src/prepare.rs` (commands); the Prepare tools panel is `copal-ui-common/src/prep.rs`.
+  Supports are stored relative to the object position; rotate / scale / mirror clear them, move
+  keeps them.
+- A slice has three kinds of triangles (`Slicer::with_cuts`): the **body** (all shells of the models,
+  a union), **cuts** (hollows and drain holes, inside out, removed from the body) and **keep**
+  (supports, printed whatever the cuts say). Never add a hollow or a hole as plain body triangles.
+- The order in Prepare is orientation → hollow → drain holes → supports, and `object.prepare`
+  does all of it. Supports look at the hollow and the holes, so they come last.
+- To look at a result without a screen: `copal-cli render project.copal -o out.png --view front`.
+- Panels are laid out by one question: where would the user click first for this? See `docs/UI.md`.
 - Personal resins: any `.toml` in `<config>/presets/resins/`, reloaded while the apps run
   (`copal-ui-common/src/resins.rs`). Lychee `.lyr` files are encrypted: don't try to read them.
 - Two themes, each dark or light: **Default** (neutral, simple orange outlines) and **Art** (amber

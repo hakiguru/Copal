@@ -77,6 +77,84 @@ pub fn button_sized(
     response
 }
 
+/// A row of buttons of the same width that fills the panel, so tools line up in neat columns.
+/// Each item is (label, hint, enabled). Returns the number of the clicked button. When the
+/// panel is too narrow for one row, the buttons wrap.
+pub fn button_row(ui: &mut Ui, look: &Look, items: &[(&str, &str, bool)]) -> Option<usize> {
+    let n = items.len().max(1) as f32;
+    let gap = ui.spacing().item_spacing.x;
+    let width = ((ui.available_width() - gap * (n - 1.0)) / n)
+        .floor()
+        .max(24.0);
+    let mut clicked = None;
+    ui.horizontal_wrapped(|ui| {
+        for (i, (label, hint, enabled)) in items.iter().enumerate() {
+            ui.add_enabled_ui(*enabled, |ui| {
+                let mut r = button_sized(ui, look, ButtonKind::Normal, *label, Some(width));
+                if !hint.is_empty() {
+                    r = r.on_hover_text(*hint);
+                }
+                if r.clicked() {
+                    clicked = Some(i);
+                }
+            });
+        }
+    });
+    clicked
+}
+
+/// A row of choices of the same width that fills the panel; the chosen one is outlined.
+/// Each item is (label, hint). Returns the number of the clicked choice.
+pub fn choice_row(
+    ui: &mut Ui,
+    look: &Look,
+    items: &[(&str, &str)],
+    selected: Option<usize>,
+) -> Option<usize> {
+    let n = items.len().max(1) as f32;
+    let gap = ui.spacing().item_spacing.x;
+    let width = ((ui.available_width() - gap * (n - 1.0)) / n)
+        .floor()
+        .max(24.0);
+    let height = ui.spacing().interact_size.y + 2.0;
+    let mut clicked = None;
+    ui.horizontal_wrapped(|ui| {
+        for (i, (label, hint)) in items.iter().enumerate() {
+            let (rect, mut r) = ui.allocate_exact_size(vec2(width, height), Sense::click());
+            if ui.is_rect_visible(rect) {
+                let p = &look.pal;
+                let on = selected == Some(i);
+                let painter = ui.painter();
+                if on {
+                    painter.rect_filled(rect, look.radius(Edge::Button), p.raised);
+                    look.outline(painter, rect, Edge::Button, State::Selected);
+                } else if r.hovered() {
+                    painter.rect_filled(rect, look.radius(Edge::Button), p.raised_hover);
+                }
+                let color = match (on, r.hovered()) {
+                    (true, _) => p.accent_text,
+                    (false, true) => p.text,
+                    (false, false) => p.text_weak,
+                };
+                painter.text(
+                    rect.center(),
+                    Align2::CENTER_CENTER,
+                    *label,
+                    FontId::proportional(12.5),
+                    color,
+                );
+            }
+            if !hint.is_empty() {
+                r = r.on_hover_text(*hint);
+            }
+            if r.clicked() {
+                clicked = Some(i);
+            }
+        }
+    });
+    clicked
+}
+
 /// A big workflow tab (Prepare / Supports / Slice & Export).
 pub fn tab(ui: &mut Ui, look: &Look, selected: bool, number: usize, text: &str) -> Response {
     let size = vec2(ui.available_width(), 40.0);

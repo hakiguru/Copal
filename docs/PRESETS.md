@@ -22,6 +22,7 @@ overwritten by updates. One folder per kind:
 
 | Folder | Holds | Saved from |
 |---|---|---|
+| `printers/` | a whole printer: screen, build height, file format (0.3) | Print tab → My printer, `presets save printer <name>` |
 | `resins/` | a whole resin with a profile per printer | Resin tab → My resin, `presets save resin <name>` |
 | `exposure/` | layer height, exposure, bottom and transition layers, light power | Resin tab |
 | `motion/` | anti-aliasing, lift / retract (two stages), waits | Print tab |
@@ -45,6 +46,24 @@ A personal resin gets the id `my/<name>` and shows up in the resin list. Loading
 - Import: `presets import <file.toml>` (console, `copal-cli presets import`), **Import file…** in the
   Resin tab, or drop the file on the window. Lychee `.lyr` files are encrypted and not supported;
   we do not break that encryption (`docs/RESEARCH.md`).
+
+### Personal printer files (0.3)
+
+Printer templates and resin templates each have their own folder: `printers/` next to `resins/`.
+
+- Any `*.toml` in `printers/` is one printer (`UserPresets::printer_files`, `load_printers`).
+  `[screen]` (resolution, size_mm), `[build]` and `[file]` are required; `id`, `brand` and `model`
+  default to `my/<slug of file name>`, `My` and the file name. Bad numbers (a zero resolution, a
+  build height of 0) are reported with the file name, never silently dropped.
+- A file whose `id` matches a built-in printer replaces it (`Library::load_checked`).
+- `presets save printer <name>` writes the project's printer as `my/<name>` with a `based_on`
+  source, so a new template starts from a working one; the user then edits the file.
+- `UserPresets::import` tells the two kinds apart (`is_printer_text`: a `[screen]` table means
+  printer) and copies the file to the right folder. Used by `presets import`, **Import file…** and
+  dropping a `.toml` on the window.
+- The apps watch both folders with one signature and reload the library on change.
+- `ensure_folder` writes a `README.txt` with the format (`copal-presets/src/printer-readme.txt`).
+- Export still needs a format Copal can write (`.goo` today).
 
 Planned (calibration wizard, 0.2) — batch, bottle date and temperature notes:
 

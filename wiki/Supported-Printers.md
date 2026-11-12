@@ -16,5 +16,6 @@ Printer data comes from manufacturer specs; every preset file names its source.
 More printers arrive with more file formats: `.ctb` in 0.3, the big database in 0.7.
 
 ## Your printer is missing?
-See [[Add a printer or resin|Adding-Printers-and-Resins]]. One test print from you can move a
+Add it yourself: a printer is a small text file in your printer folder (0.3). See
+[[Add a printer or resin|Adding-Printers-and-Resins]]. One test print from you can move a
 printer from experimental to stable.
