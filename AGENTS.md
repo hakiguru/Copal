@@ -155,6 +155,13 @@ tools/ui-shot.sh        screenshot an app in a virtual display (Xvfb) to check t
 - The order in Prepare is orientation → hollow → drain holes → supports, and `object.prepare`
   does all of it. Supports look at the hollow and the holes, so they come last.
 - To look at a result without a screen: `copal-cli render project.copal -o out.png --view front`.
+- Supports never stand on faces buried inside another shell of the model (`Bvh::winding`), and
+  short model-to-model supports are only for islands. The base under supports is raft, pads or grid
+  (`SupportSet::rebuild_base`).
+- Keyboard shortcuts are actions in `copal-ui-common/src/hotkeys.rs` (`ACTIONS`); users can change
+  them. UI hints get keys from `Workspace::key_text`, never as fixed strings.
+- The window is "Copal Slicer <version>"; `copal-ui-common/src/desktop.rs` gives AppImage and
+  tar.gz users a desktop entry so the taskbar shows the logo.
 - Panels are laid out by one question: where would the user click first for this? See `docs/UI.md`.
 - Personal resins: any `.toml` in `<config>/presets/resins/`, reloaded while the apps run
   (`copal-ui-common/src/resins.rs`). Lychee `.lyr` files are encrypted: don't try to read them.

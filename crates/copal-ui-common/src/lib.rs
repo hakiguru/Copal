@@ -3,10 +3,12 @@
 //! - [`theme`], [`palette`], [`look`], [`crystal`], [`widgets`]: colors, outlines, buttons.
 //! - [`camera`], [`render`], [`gizmo`], [`view3d`]: the OpenGL 3D view with handles.
 //! - [`workspace`], [`panels`], [`files`]: state and panels both apps share.
-//! - [`hotkeys`]: the table of keyboard shortcuts and its window.
+//! - [`hotkeys`]: keyboard shortcuts the user can change, and their window.
+//! - [`desktop`]: the app's name and icon in the taskbar.
 
 pub mod camera;
 pub mod crystal;
+pub mod desktop;
 pub mod files;
 pub mod gizmo;
 pub mod hotkeys;

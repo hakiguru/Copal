@@ -66,6 +66,14 @@ pub struct PrintRecord {
     pub layers: u32,
     pub height_mm: f32,
     pub volume_ml: f32,
+    /// Weight of the resin, g.
+    #[serde(default)]
+    pub weight_g: f32,
+    /// What the resin cost, when its price was known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price: Option<f32>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub currency: String,
     pub print_time_s: f32,
     pub layer_height_mm: f32,
     pub exposure_s: f32,
@@ -94,6 +102,9 @@ impl PrintRecord {
             layers: 0,
             height_mm: 0.0,
             volume_ml: 0.0,
+            weight_g: 0.0,
+            price: None,
+            currency: String::new(),
             print_time_s: 0.0,
             layer_height_mm: e.layer_height_mm,
             exposure_s: e.exposure_s,

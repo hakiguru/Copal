@@ -4,8 +4,11 @@ fn main() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let mut res = winresource::WindowsResource::new();
         res.set_icon("../../assets/copal.ico")
-            .set("FileDescription", "Copal Lite")
-            .set("ProductName", "Copal")
+            .set(
+                "FileDescription",
+                &format!("Copal Slicer Lite {}", env!("CARGO_PKG_VERSION")),
+            )
+            .set("ProductName", "Copal Slicer")
             .set(
                 "LegalCopyright",
                 "MIT License, hakiguru and Copal contributors",

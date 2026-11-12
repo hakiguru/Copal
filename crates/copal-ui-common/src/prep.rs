@@ -87,6 +87,62 @@ pub(crate) struct PrepState {
     pub(crate) hole_status: Option<(HoleKey, String, bool)>,
 }
 
+/// The kinds of base under the supports, with what they are for.
+pub(crate) const BASES: [(&str, &str); 4] = [
+    (
+        "Raft",
+        "One plate under all supports: holds best, uses the most resin",
+    ),
+    (
+        "Pads",
+        "A round pad under each foot: less resin, easy to take off",
+    ),
+    (
+        "Grid",
+        "Pads tied by bars that lie on the plate, like a net: holds well with little resin",
+    ),
+    (
+        "None",
+        "Supports stand on the plate with their cone feet only",
+    ),
+];
+
+impl Workspace {
+    /// Which of [`BASES`] the project uses.
+    pub(crate) fn base_choice(&self) -> usize {
+        let s = &self.doc().settings.supports;
+        if !s.raft {
+            return 3;
+        }
+        match s.base {
+            copal_core::supports::BaseKind::Raft => 0,
+            copal_core::supports::BaseKind::Pads => 1,
+            copal_core::supports::BaseKind::Grid => 2,
+        }
+    }
+
+    /// Picks a base and rebuilds it under the supports that are there, as one undo step each.
+    pub(crate) fn set_base(&mut self, i: usize) {
+        let line = match i {
+            0 => "supports.set raft=true base=raft",
+            1 => "supports.set raft=true base=pads",
+            2 => "supports.set raft=true base=grid",
+            _ => "supports.set raft=false",
+        };
+        self.run(line);
+        let ids: Vec<ObjectId> = self
+            .doc()
+            .objects()
+            .iter()
+            .filter(|o| o.prep.has_supports())
+            .map(|o| o.id)
+            .collect();
+        for id in ids {
+            self.run(&format!("supports.base id={id}"));
+        }
+    }
+}
+
 /// What a drain hole check depends on: object, hollow, number and depth of the holes.
 type HoleKey = (ObjectId, usize, usize, u32);
 
@@ -675,10 +731,11 @@ impl Workspace {
                 format!("Prepare for printing ({target})"),
                 w,
             )
-            .on_hover_text(
-                "Ctrl+P. Turns the model the best way up, hollows it if you want, adds drain \
+            .on_hover_text(format!(
+                "{}. Turns the model the best way up, hollows it if you want, adds drain \
                  holes and supports, and checks the result. One undo step.",
-            )
+                self.key_text("prepare")
+            ))
             .clicked()
             {
                 self.prepare_for_printing(false);
@@ -753,10 +810,11 @@ impl Workspace {
                 format!("Auto orient ({target})"),
                 w,
             )
-            .on_hover_text(
-                "Ctrl+T. Turns the model so it prints safely. Supports are removed, because \
+            .on_hover_text(format!(
+                "{}. Turns the model so it prints safely. Supports are removed, because \
                  they were made for the old orientation.",
-            )
+                self.key_text("orient")
+            ))
             .clicked()
             {
                 self.auto_orient(false);
@@ -903,6 +961,17 @@ impl Workspace {
             let name = ["light", "medium", "heavy"][i];
             self.run(&format!("presets load supports {name}"));
         }
+        ui.label(
+            RichText::new("Base on the plate")
+                .small()
+                .color(look.pal.text_weak),
+        );
+        let base = self.base_choice();
+        if let Some(i) = widgets::choice_row(ui, look, &BASES, Some(base))
+            && i != base
+        {
+            self.set_base(i);
+        }
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new("Where").color(look.pal.text_weak));
             if tab_button(ui, look, self.prep.mode == Mode::Auto, "Everywhere", false)
@@ -934,10 +1003,11 @@ impl Workspace {
                 format!("Auto supports ({target})"),
                 w,
             )
-            .on_hover_text(
-                "Ctrl+U. Lifts the model, finds islands, edges and overhangs, ties the supports \
+            .on_hover_text(format!(
+                "{}. Lifts the model, finds islands, edges and overhangs, ties the supports \
                  together with braces and adds a raft. Supports you placed by hand stay.",
-            )
+                self.key_text("auto_supports")
+            ))
             .clicked()
             {
                 self.auto_supports(false);

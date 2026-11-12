@@ -397,15 +397,25 @@ impl Shell {
             self.history.as_ref(),
         ) {
             Ok((r, record)) => {
+                let price = match r.price {
+                    Some(p) => format!(", {p:.2} {}", r.currency),
+                    None => String::new(),
+                };
                 out.info(format!(
-                    "Wrote {} — {} layers, {:.1} mm high, {:.1} ml resin, about {} to print (sliced in {:.1} s)",
+                    "Wrote {} — {} layers, {:.1} mm high, {:.1} ml resin ({:.0} g{price}), about {} to print (sliced in {:.1} s)",
                     r.path.display(),
                     r.layers,
                     r.height_mm,
                     r.volume_ml,
+                    r.weight_g,
                     format_duration(r.print_time_s as f64),
                     started.elapsed().as_secs_f32()
                 ));
+                if r.price.is_none() {
+                    out.info(
+                        "Set the resin price to see what a print costs: print.set resin_price=30 price_per=kg currency=$",
+                    );
+                }
                 if let Some(rec) = record {
                     out.info(format!("Saved to the history as {}", rec.id));
                 }
@@ -958,7 +968,15 @@ impl Shell {
                             .iter()
                             .find(|(n, _)| *n == name)
                         {
-                            Some((_, b)) => Ok(line_from("supports", b)),
+                            Some((_, b)) => {
+                                // A built-in preset sets how strong supports are; the kind of
+                                // base the user chose stays.
+                                let now = self.session.doc.settings.supports;
+                                let mut b = *b;
+                                b.raft = now.raft;
+                                b.base = now.base;
+                                Ok(line_from("supports", &b))
+                            }
                             None => load_line::<SupportSettings>(&user, kind, &name, "supports"),
                         }
                     }
@@ -1231,13 +1249,17 @@ impl Shell {
             for o in self.session.doc.objects() {
                 match &o.prep.supports {
                     Some(s) => out.info(format!(
-                        "[{}] {} — {} supports ({} by hand), {} braces{}",
+                        "[{}] {} — {} supports ({} by hand), {} braces, {}",
                         o.id,
                         o.name,
                         s.supports.len(),
                         s.supports.iter().filter(|x| x.manual).count(),
                         s.braces.len(),
-                        if s.raft.is_empty() { "" } else { ", raft" }
+                        if s.has_base() {
+                            s.base.name()
+                        } else {
+                            "no base"
+                        }
                     )),
                     None => out.info(format!("[{}] {} — no supports", o.id, o.name)),
                 }

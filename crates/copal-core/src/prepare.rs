@@ -264,6 +264,8 @@ pub enum SupportOp {
         diameter: Option<f32>,
         tip: Option<f32>,
     },
+    /// Rebuild the base under the supports from the project settings (raft, pads or grid).
+    Base,
 }
 
 impl Command for EditSupports {
@@ -273,6 +275,7 @@ impl Command for EditSupports {
             SupportOp::Remove(_) => "supports.remove",
             SupportOp::Clear => "supports.clear",
             SupportOp::Resize { .. } => "supports.resize",
+            SupportOp::Base => "supports.base",
         }
     }
 
@@ -326,10 +329,7 @@ impl Command for EditSupports {
                 if set.remove(ids) == 0 {
                     return Err(CommandError::Invalid("no such supports".into()));
                 }
-                set.rebuild_raft(
-                    settings.raft && !set.raft.is_empty(),
-                    settings.raft_margin_mm,
-                );
+                set.rebuild_raft(settings.raft && set.has_base(), settings.raft_margin_mm);
             }
             SupportOp::Clear => set = SupportSet::default(),
             SupportOp::Resize { ids, diameter, tip } => {
@@ -346,6 +346,20 @@ impl Command for EditSupports {
                 if n == 0 {
                     return Err(CommandError::Invalid("no such supports".into()));
                 }
+            }
+            SupportOp::Base => {
+                if set.is_empty() {
+                    return Err(CommandError::Invalid(format!(
+                        "object {} has no supports",
+                        self.id
+                    )));
+                }
+                set.base_diameter = settings.base_diameter_mm;
+                set.raft_thickness = settings.raft_thickness_mm;
+                set.rebuild_base(
+                    settings.raft.then_some(settings.base),
+                    settings.raft_margin_mm,
+                );
             }
         }
         let supports = (!set.is_empty()).then(|| Arc::new(set));
@@ -385,9 +399,15 @@ pub fn orient_object(
     };
     let bvh = Bvh::from_mesh(&o.mesh, &unturned.matrix());
     let s = &doc.settings.supports;
-    let analyzer =
-        copal_supports::Analyzer::new(bvh.triangles(), s.overhang_angle_deg.to_radians().cos())
-            .ok_or_else(|| CommandError::Invalid(format!("object {id} is empty")))?;
+    // A model that is (or will be) hollow pulls on the film only with its walls.
+    let h = &doc.settings.hollow;
+    let wall = (h.enabled || o.prep.cavity.is_some()).then_some(h.wall_thickness_mm);
+    let analyzer = copal_supports::Analyzer::with_wall(
+        bvh.triangles(),
+        s.overhang_angle_deg.to_radians().cos(),
+        wall,
+    )
+    .ok_or_else(|| CommandError::Invalid(format!("object {id} is empty")))?;
     // Room for the lift and the raft under the model, and for the raft around it.
     let mut volume = doc.build_volume();
     volume.z -= lift_target(doc);
@@ -1165,6 +1185,15 @@ pub(crate) fn build_supports_clear(a: &Args) -> Result<Box<dyn Command>, Command
         id: ObjectId(a.get("id")?),
         text: line(a),
         op: SupportOp::Clear,
+    }))
+}
+
+pub(crate) fn build_supports_base(a: &Args) -> Result<Box<dyn Command>, CommandError> {
+    a.only(&["id"])?;
+    Ok(Box::new(EditSupports {
+        id: ObjectId(a.get("id")?),
+        text: line(a),
+        op: SupportOp::Base,
     }))
 }
 

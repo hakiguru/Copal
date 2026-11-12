@@ -16,7 +16,9 @@
 > supports with braces and a raft, hollowing, drain holes, your own resins and panels that fold
 > away. **0.3** prepares a model in one click: auto orientation, hollowing with drain holes that
 > are checked, supports tied into a lattice. It also brings your own printers, tidy tool panels
-> and hotkeys for almost everything.
+> and hotkeys for almost everything. **0.4** tilts models on all axes when it orients them, leaves
+> no support stubs on the model, adds pads and a grid as a base, a layer slider, the weight and
+> price of every print, and keys you can change.
 > Pages for planned features say which version brings them.
 
 ## Welcome
@@ -82,6 +84,9 @@ This wiki is the user guide. It grows together with the app.
 отверстиями (с проверкой, что они открывают полость) и поддержки, связанные в решётку. Ручные
 поддержки присоединяются к уже стоящим. Ещё появились свои шаблоны принтеров, аккуратные панели
 инструментов и горячие клавиши почти на все действия (список по F1).
+В 0.4 автоориентация наклоняет модель по всем осям (чемодан больше не ставится на торец),
+поддержки не оставляют «пеньков» на модели, появились основания «площадки» и «сетка», ползунок
+слоёв, вес и стоимость печати после нарезки и переназначаемые горячие клавиши.
 Вики пока на английском; русский интерфейс и страницы появятся позже.
 
 </details>

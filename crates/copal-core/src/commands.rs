@@ -365,6 +365,12 @@ static REGISTRY: &[CommandInfo] = &[
         build: crate::prepare::build_supports_auto,
     },
     CommandInfo {
+        name: "supports.base",
+        summary: "Rebuild the base under an object's supports from the settings: raft, pads or grid (supports.set base=…, raft=true|false).",
+        usage: "supports.base id=<id>",
+        build: crate::prepare::build_supports_base,
+    },
+    CommandInfo {
         name: "supports.clear",
         summary: "Remove all supports of an object.",
         usage: "supports.clear id=<id>",

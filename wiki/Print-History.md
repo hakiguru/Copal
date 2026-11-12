@@ -1,10 +1,12 @@
 Every export is remembered — with the project exactly as it was sliced.
 
-Open it with **History** in the top bar (File → Print history in Lite) or from the Export step.
+Open it with **History** in the top bar, **Open from print history…** in Layout, `Ctrl+Shift+P`,
+File → Print history in Lite, or from the Export step. Old models come back with their
+orientation, hollow, drain holes, supports and every setting.
 
 For each export you see:
 - a picture of the plate, the file name and date, printer and resin;
-- layers, height, resin volume, print time, exposure and bottom exposure;
+- layers, height, resin volume, weight, price, print time, exposure and bottom exposure;
 - **stars** (1–5), **Printed well** / **Failed**, and a **note** — what went right or wrong.
 
 Buttons:

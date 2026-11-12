@@ -3,6 +3,23 @@
 All notable changes to Copal. Newest first.
 Each version here is also published as a GitHub Release.
 
+## 0.4.0
+
+Auto orientation that tilts a model on all axes, cleaner supports, three kinds of base under them, a layer slider, the price of every print, and keys you can change.
+
+- Auto orientation turns a model on all three axes when that helps. A flat, tall model like a suitcase no longer stands on its end: Copal now also weighs how steady the model stands on its supports and avoids faces that stand straight up, so it leans the model on two axes like an experienced user would
+- When the model will be hollowed, orientation counts only the walls as the area of a layer
+- No more small support stubs on top of a model. Models are often made of parts that overlap; the hidden underside of a part inside another one no longer gets supports that poke out of the surface. The roof of a narrow groove gets no support, and a short support from the model to the model is left out unless it holds an island
+- Three kinds of base under the supports: Raft (one plate), Pads (a round pad under each foot) and Grid (pads tied together by bars that lie on the plate, like a net: holds well with little resin). Prepare → 4 · Supports → "Base on the plate", or the Supports tab. Changing it rebuilds the base under the supports that are there (`supports.set base=grid`, `supports.base id=1`)
+- Layer slider on the right of the 3D view: look at the model and its supports up to any layer, in every step. Alt+Up / Alt+Down move it one layer, with Shift ten, Alt+Home shows everything
+- The price of a print: set the resin price per kilogram or per litre, the currency and the density in the Resin tab. "Save as my resin" keeps them in your resin file
+- After slicing, a window shows the print time, the layers, the resin in ml, the weight in grams and the price. The console, the print history and the printer file get the weight and the price too
+- Every keyboard shortcut can be changed: open Keys (F1), click a key and press the new one. Esc cancels, Backspace removes it. Your keys are kept in the app settings (`copal-cli settings key.orient=Ctrl+Shift+O`)
+- Move, rotate and scale modes have their own keys (G, R, S by default), shown on the buttons
+- The print history opens from Layout ("Open from print history…") and with Ctrl+Shift+P: every exported model comes back with its supports and settings
+- The taskbar and dock show the Copal logo and "Copal Slicer 0.4.0" (or "Copal Slicer Lite"), also for the AppImage and the tar.gz: they add a desktop entry for themselves on the first start
+- The overhang colour is a soft lilac instead of red, and lighter, so the faces under the model are easy to see
+
 ## 0.3.0
 
 A model ready to print in one click: the best angle, a hollow with drain holes that work, and supports that hold each other. Plus tidier tools, hotkeys for almost everything, and your own printers.

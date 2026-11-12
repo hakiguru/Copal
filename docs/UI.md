@@ -119,9 +119,13 @@ copal-cli. Switch in the Settings window (Ctrl+,), with `settings theme=… mode
 
 ## Hotkeys
 
-One table for people (`copal-ui-common/src/hotkeys.rs`, shown by F1 and by `hotkeys` in the
-console) and one handler (`Workspace::hotkeys`). Keep the two and `wiki/Hotkeys.md` in step.
-Letter keys are ignored while a text field or the console has the focus.
+Every key is an *action* with default keys in `copal-ui-common/src/hotkeys.rs` (`ACTIONS`). The
+user's own keys live in the app settings (`keys`, `key.<action>=…` on the command line) and win
+over the defaults. `Keymap::pressed` turns the key events of a frame into actions and
+`Workspace::hotkeys` does them. The F1 window lists them and changes them (click, then press keys).
+Keep `ACTIONS` and `wiki/Hotkeys.md` in step. Hints in the UI take the key from the keymap
+(`Workspace::key_text`), never a hard-coded string. Plain keys are ignored while a text field or
+the console has the focus; Ctrl keys and F-keys still work.
 
 | Key | Action |
 |---|---|
@@ -163,8 +167,8 @@ Letter keys are ignored while a text field or the console has the focus.
 | Right / middle drag, Shift+drag | Pan |
 | Wheel | Zoom to the cursor |
 
-Combinations with more modifiers are consumed first (`Ctrl+Shift+U` before `Ctrl+U`), because egui
-matches `Ctrl+U` for both.
+Keys are matched exactly (`Ctrl+U` does not fire for `Ctrl+Shift+U`); keys with Ctrl or Alt are
+taken out of the input so text fields do not see them too.
 
 Planned (0.6, Blender-style editing): Tab for Edit mode, axis locks after G / R / S, typed values,
-vertex / edge / face selection, extrude. The hotkey map becomes editable in 0.4.
+vertex / edge / face selection, extrude.

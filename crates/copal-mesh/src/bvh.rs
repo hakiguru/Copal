@@ -191,6 +191,38 @@ impl Bvh {
         })
     }
 
+    /// How many closed shells hold `p`: 0 outside the model, 1 inside one shell, 2 where two
+    /// overlapping shells meet, and so on. Counts the shells a ray leaves minus the ones it enters.
+    pub fn winding(&self, p: Vec3) -> i32 {
+        // An odd direction, so the ray does not run along edges of axis-aligned models.
+        let dir = Vec3::new(0.123_4, 0.256_7, 0.958_9).normalize();
+        let mut count = 0;
+        let mut stack = vec![0usize];
+        let inv = dir.recip();
+        while let Some(i) = stack.pop() {
+            let n = self.nodes[i];
+            if !slab(p, inv, n.min, n.max, f32::INFINITY) {
+                continue;
+            }
+            if n.count > 0 {
+                for t in &self.tris[n.start as usize..(n.start + n.count) as usize] {
+                    let [a, b, c] = *t;
+                    if ray_triangle(p, dir, a, b, c).is_some_and(|t| t > 0.0) {
+                        count += if (b - a).cross(c - a).dot(dir) > 0.0 {
+                            1
+                        } else {
+                            -1
+                        };
+                    }
+                }
+            } else {
+                stack.push(n.start as usize);
+                stack.push(n.start as usize + 1);
+            }
+        }
+        count
+    }
+
     /// True if anything is hit with `t` in `(min_t, max_t)`.
     pub fn occluded(&self, origin: Vec3, dir: Vec3, min_t: f32, max_t: f32) -> bool {
         self.raycast(origin, dir, min_t, max_t).is_some()
@@ -316,5 +348,19 @@ mod tests {
         }
         let (q, n) = bvh.closest_point(Vec3::new(0.0, 0.0, -2.0), 5.0).unwrap();
         assert!((q.z - 0.0).abs() < 1e-5 && n.z < -0.9, "{q} {n}");
+    }
+
+    #[test]
+    fn winding_counts_overlapping_shells() {
+        let mut m = Mesh::cuboid(Vec3::splat(10.0));
+        let mut other = Mesh::cuboid(Vec3::splat(10.0));
+        for p in &mut other.positions {
+            p.x += 6.0;
+        }
+        m.append(&other);
+        let bvh = Bvh::from_mesh(&m, &Mat4::IDENTITY);
+        assert_eq!(bvh.winding(Vec3::new(-3.0, 0.0, 5.0)), 1);
+        assert_eq!(bvh.winding(Vec3::new(3.0, 0.0, 5.0)), 2);
+        assert_eq!(bvh.winding(Vec3::new(30.0, 0.0, 5.0)), 0);
     }
 }

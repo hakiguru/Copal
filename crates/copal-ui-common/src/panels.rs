@@ -288,18 +288,30 @@ impl Workspace {
         {
             self.run("object.add_cube size=20");
         }
+        let hint = format!(
+            "Every model you exported, with its supports and settings, ready to open again ({})",
+            self.key_text("history")
+        );
+        if widgets::button_sized(ui, look, ButtonKind::Normal, "Open from print history…", w)
+            .on_hover_text(hint)
+            .clicked()
+        {
+            self.show_history = true;
+        }
 
         // The handles first, then what they can't do, in rows of equal buttons.
         widgets::section(ui, look, "Transform");
         ui.horizontal_wrapped(|ui| {
-            for (mode, name, key) in [
-                (gizmo::Mode::Move, "Move", "G"),
-                (gizmo::Mode::Rotate, "Rotate", "R"),
-                (gizmo::Mode::Scale, "Scale", "S"),
+            for (mode, name, id) in [
+                (gizmo::Mode::Move, "Move", "mode_move"),
+                (gizmo::Mode::Rotate, "Rotate", "mode_rotate"),
+                (gizmo::Mode::Scale, "Scale", "mode_scale"),
             ] {
+                let key = self.key_text(id);
                 if tab_button(ui, look, self.gizmo_mode == mode, name, false)
                     .on_hover_text(format!(
-                        "{key} — drag the handles in the 3D view. Ctrl snaps."
+                        "{key} — drag the handles in the 3D view. Ctrl snaps. \
+                         Change keys in Keys (F1)."
                     ))
                     .clicked()
                 {
@@ -328,13 +340,17 @@ impl Workspace {
             None => {}
         }
         let busy = self.job_running();
+        let hint = format!(
+            "{}. Turn the model the best way up for printing: tilted on two axes, small layers \
+             that grow slowly, few overhangs, steady on its supports. More choices in Prepare.",
+            self.key_text("orient")
+        );
         if widgets::button_row(
             ui,
             look,
             &[(
                 "Auto orient",
-                "Ctrl+T. Turn the model the best way up for printing: small layers that grow \
-                 slowly and few overhangs. More choices in Prepare.",
+                &hint,
                 !busy && !self.doc().objects().is_empty(),
             )],
         )
@@ -799,7 +815,107 @@ impl Workspace {
                 .color(look.pal.text_faint),
         );
         self.preset_row(ui, look, Kind::Exposure, "exposure", &[]);
+        widgets::section(ui, look, "Price");
+        self.resin_price_editor(ui, look);
         self.my_resin_section(ui, look);
+    }
+
+    /// Price of the resin: amount, per kilogram or litre, currency, density. Saved with
+    /// "Save as my resin", so the resin file carries it.
+    pub(crate) fn resin_price_editor(&mut self, ui: &mut Ui, look: &Look) {
+        let c = self.doc().settings.print.cost;
+        egui::Grid::new("resin-price")
+            .num_columns(2)
+            .spacing([8.0, 6.0])
+            .show(ui, |ui| {
+                row_label(
+                    ui,
+                    look,
+                    "Price",
+                    "What a bottle costs per kilogram or per litre. 0 = not known.",
+                );
+                ui.horizontal(|ui| {
+                    num(
+                        self,
+                        ui,
+                        "print",
+                        "resin_price",
+                        None,
+                        c.resin_price as f64,
+                        0.1,
+                        0.0..=1_000_000.0,
+                        "",
+                    );
+                    let key = "print.currency";
+                    let mut cur = self
+                        .text_edit
+                        .get(key)
+                        .cloned()
+                        .unwrap_or_else(|| c.currency.to_string());
+                    let r = ui.add(
+                        TextEdit::singleline(&mut cur)
+                            .desired_width(44.0)
+                            .hint_text("$"),
+                    );
+                    if r.changed() {
+                        self.text_edit.insert(key.into(), cur.clone());
+                    }
+                    if r.lost_focus() {
+                        self.text_edit.remove(key);
+                        if cur.trim() != c.currency.as_str() {
+                            self.run(&format!(
+                                "print.set currency={}",
+                                copal_core::script::quote(cur.trim())
+                            ));
+                        }
+                    }
+                    ui.label(RichText::new("per").color(look.pal.text_weak));
+                    for (unit, name, hint) in [
+                        (
+                            copal_core::presets::PriceUnit::Kg,
+                            "kg",
+                            "Price of a kilogram",
+                        ),
+                        (
+                            copal_core::presets::PriceUnit::Liter,
+                            "litre",
+                            "Price of a litre",
+                        ),
+                    ] {
+                        if tab_button(ui, look, c.price_per == unit, name, false)
+                            .on_hover_text(hint)
+                            .clicked()
+                            && c.price_per != unit
+                        {
+                            let v = if unit == copal_core::presets::PriceUnit::Kg {
+                                "kg"
+                            } else {
+                                "l"
+                            };
+                            self.run(&format!("print.set price_per={v}"));
+                        }
+                    }
+                });
+                ui.end_row();
+                row_label(
+                    ui,
+                    look,
+                    "Density",
+                    "Grams per millilitre, for the weight. Most resins are 1.05 – 1.25.",
+                );
+                num(
+                    self,
+                    ui,
+                    "print",
+                    "resin_density_g_ml",
+                    None,
+                    c.resin_density_g_ml as f64,
+                    0.01,
+                    0.5..=3.0,
+                    " g/ml",
+                );
+                ui.end_row();
+            });
     }
 
     fn print_tab(&mut self, ui: &mut Ui, look: &Look) {
@@ -1218,16 +1334,13 @@ impl Workspace {
             "Support islands",
             "Parts of a layer with nothing under them",
         );
-        widgets::section(ui, look, "Raft");
-        check(
-            self,
-            ui,
-            "supports",
-            "raft",
-            s.raft,
-            "Raft under the supports",
-            "",
-        );
+        widgets::section(ui, look, "Base");
+        let base = self.base_choice();
+        if let Some(i) = widgets::choice_row(ui, look, &crate::prep::BASES, Some(base))
+            && i != base
+        {
+            self.set_base(i);
+        }
         egui::Grid::new("raft")
             .num_columns(2)
             .spacing([8.0, 6.0])
@@ -1732,6 +1845,108 @@ impl Workspace {
         self.set_settings(s);
     }
 
+    /// What the last export will take: shown when slicing ends.
+    pub fn summary_window(&mut self, ctx: &egui::Context, look: &Look) {
+        if !self.show_summary {
+            return;
+        }
+        let Some(Ok(r)) = self.last_export.clone() else {
+            self.show_summary = false;
+            return;
+        };
+        let cost = self.doc().settings.print.cost;
+        let mut open = true;
+        let mut close = false;
+        let mut history = false;
+        egui::Window::new("Ready to print")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                let name = r
+                    .path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                ui.label(RichText::new(name).strong().color(look.pal.text));
+                ui.label(
+                    RichText::new(
+                        r.path
+                            .parent()
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_default(),
+                    )
+                    .small()
+                    .color(look.pal.text_faint),
+                );
+                ui.add_space(6.0);
+                let big = |t: String| RichText::new(t).size(17.0).color(look.pal.accent_text);
+                egui::Grid::new("summary")
+                    .num_columns(2)
+                    .spacing([24.0, 8.0])
+                    .show(ui, |ui| {
+                        row_label(
+                            ui,
+                            look,
+                            "Print time",
+                            "Estimated from exposure, waits and lift speeds",
+                        );
+                        ui.label(big(format_duration(r.print_time_s as f64)));
+                        ui.end_row();
+                        row_label(ui, look, "Layers", "");
+                        ui.label(big(format!("{} · {:.1} mm high", r.layers, r.height_mm)));
+                        ui.end_row();
+                        row_label(
+                            ui,
+                            look,
+                            "Resin",
+                            "Everything that prints: models, supports and base",
+                        );
+                        ui.label(big(format!("{:.1} ml", r.volume_ml)));
+                        ui.end_row();
+                        row_label(ui, look, "Weight", "Resin volume × density (Resin tab)");
+                        ui.label(big(format!("{:.0} g", cost.weight_g(r.volume_ml))));
+                        ui.end_row();
+                        row_label(ui, look, "Price", "Resin volume × resin price (Resin tab)");
+                        match cost.price(r.volume_ml) {
+                            Some(p) => ui.label(big(format!(
+                                "≈ {p:.2} {}",
+                                widgets::currency_text(ui.ctx(), cost.currency.as_str())
+                            ))),
+                            None => ui.label(
+                                RichText::new("type the resin price below")
+                                    .color(look.pal.text_faint),
+                            ),
+                        };
+                        ui.end_row();
+                    });
+                ui.add_space(4.0);
+                egui::CollapsingHeader::new(RichText::new("Resin price").color(look.pal.text_weak))
+                    .default_open(cost.resin_price <= 0.0)
+                    .show(ui, |ui| self.resin_price_editor(ui, look));
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if widgets::button(ui, look, ButtonKind::Primary, "OK").clicked() {
+                        close = true;
+                    }
+                    if widgets::button(ui, look, ButtonKind::Normal, "Print history")
+                        .on_hover_text(
+                            "Every export with a copy of the project, supports and settings",
+                        )
+                        .clicked()
+                    {
+                        history = true;
+                        close = true;
+                    }
+                });
+            });
+        if history {
+            self.show_history = true;
+        }
+        self.show_summary = open && !close;
+    }
+
     /// The print history: every export with its settings, a picture, a rating and the project
     /// as it was sliced.
     pub fn history_window(&mut self, ctx: &egui::Context, look: &Look) {
@@ -1798,11 +2013,16 @@ impl Workspace {
                                 );
                                 ui.label(
                                     RichText::new(format!(
-                                        "{} layers × {} mm · {:.1} mm · {:.1} ml · ≈ {} · exposure {} s, bottom {} × {} s",
+                                        "{} layers × {} mm · {:.1} mm · {:.1} ml{} · ≈ {} · exposure {} s, bottom {} × {} s",
                                         r.layers,
                                         r.layer_height_mm,
                                         r.height_mm,
                                         r.volume_ml,
+                                        match r.price {
+                                            Some(p) => format!(" · {:.0} g · {p:.2} {}", r.weight_g, widgets::currency_text(ui.ctx(), &r.currency)),
+                                            None if r.weight_g > 0.0 => format!(" · {:.0} g", r.weight_g),
+                                            None => String::new(),
+                                        },
                                         format_duration(r.print_time_s as f64),
                                         r.exposure_s,
                                         r.bottom_layers,

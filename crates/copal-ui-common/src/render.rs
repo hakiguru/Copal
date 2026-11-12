@@ -45,6 +45,8 @@ pub struct Frame3d {
     /// Faces looking down more steeply than this get the overhang color. `None` = off.
     pub overhang_cos: Option<f32>,
     pub overhang_color: [f32; 3],
+    /// Models and supports are cut off above this height (the layer slider). `None` = all.
+    pub clip_z: Option<f32>,
 }
 
 struct GpuMesh {
@@ -76,6 +78,7 @@ pub struct Renderer {
     u_light: Option<glow::UniformLocation>,
     u_overhang: Option<glow::UniformLocation>,
     u_overhang_color: Option<glow::UniformLocation>,
+    u_clip: Option<glow::UniformLocation>,
     u_height: Option<glow::UniformLocation>,
     u_color_mvp: Option<glow::UniformLocation>,
 }
@@ -101,14 +104,22 @@ uniform vec3 u_color;
 uniform vec3 u_light;
 uniform float u_overhang;
 uniform vec3 u_overhang_color;
+uniform float u_clip;
 IN vec3 v_normal;
 IN float v_height;
 void main() {
+    // The layer slider: nothing above the chosen layer.
+    if (v_height > u_clip) {
+        discard;
+    }
     vec3 n = normalize(v_normal);
     vec3 base = u_color;
+    // Faces that look down get little light; overhangs get more, so their color reads softly.
+    float ambient = 0.28;
     // Faces that lie on the plate look down too, but the plate holds them.
     if (u_overhang > 0.0 && -n.z > u_overhang && v_height > 0.05) {
         base = u_overhang_color;
+        ambient = 0.62;
     }
     // Back faces (inside of open or hollow models) are lit from the other side and darker.
     if (!gl_FrontFacing) {
@@ -117,7 +128,7 @@ void main() {
     }
     float key = max(dot(n, u_light), 0.0);
     float fill = max(dot(n, normalize(vec3(-u_light.x, -u_light.y, 0.6))), 0.0);
-    vec3 c = base * (0.28 + 0.62 * key + 0.18 * fill);
+    vec3 c = base * (ambient + 0.62 * key + 0.18 * fill);
     FRAG_COLOR = vec4(c, 1.0);
 }
 "#;
@@ -253,6 +264,7 @@ impl Renderer {
                 u_light: gl.get_uniform_location(mesh_program, "u_light"),
                 u_overhang: gl.get_uniform_location(mesh_program, "u_overhang"),
                 u_overhang_color: gl.get_uniform_location(mesh_program, "u_overhang_color"),
+                u_clip: gl.get_uniform_location(mesh_program, "u_clip"),
                 u_height: gl.get_uniform_location(mesh_program, "u_height"),
                 u_color_mvp: gl.get_uniform_location(color_program, "u_mvp"),
                 mesh_program,
@@ -302,6 +314,7 @@ impl Renderer {
 
             let oc = frame.overhang_color;
             gl.uniform_3_f32(self.u_overhang_color.as_ref(), oc[0], oc[1], oc[2]);
+            gl.uniform_1_f32(self.u_clip.as_ref(), frame.clip_z.unwrap_or(1e9));
             for m in self.meshes.values_mut() {
                 m.used = false;
             }

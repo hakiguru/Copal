@@ -40,6 +40,10 @@ pub struct Settings {
     pub gizmo_size: f32,
     /// Which side windows of the apps are open (they fold away like tool windows in an IDE).
     pub panels: Panels,
+    /// Keyboard shortcuts the user changed: action → keys, like `"orient": "Ctrl+Shift+O"`.
+    /// Several keys are separated by commas; an empty string turns the action's keys off.
+    /// Actions not listed keep their default keys.
+    pub keys: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +71,7 @@ impl Default for Settings {
             mode: ColorMode::Dark,
             gizmo_size: 1.0,
             panels: Panels::default(),
+            keys: Default::default(),
         }
     }
 }
@@ -76,7 +81,7 @@ pub const GIZMO_SIZES: (f32, f32) = (0.4, 3.0);
 
 #[derive(Debug, Error)]
 pub enum SettingsError {
-    #[error("unknown setting `{0}` (known: theme, mode, gizmo)")]
+    #[error("unknown setting `{0}` (known: theme, mode, gizmo, key.<action>)")]
     UnknownKey(String),
     #[error("`{key}` can be {allowed}, not `{value}`")]
     BadValue {
@@ -98,6 +103,10 @@ impl Settings {
         ("theme", "default | art"),
         ("mode", "dark | light"),
         ("gizmo", "0.4 – 3, size of the move/rotate/scale handles"),
+        (
+            "key.<action>",
+            "keys for an action, e.g. key.orient=Ctrl+Shift+O; `default` resets, `none` turns off",
+        ),
     ];
 
     pub fn get(&self, key: &str) -> Result<String, SettingsError> {
@@ -105,6 +114,11 @@ impl Settings {
             "theme" => Ok(self.theme.to_string()),
             "mode" => Ok(self.mode.to_string()),
             "gizmo" => Ok(format!("{}", self.gizmo_size)),
+            k if k.starts_with("key.") => Ok(self
+                .keys
+                .get(&k[4..])
+                .cloned()
+                .unwrap_or_else(|| "default".into())),
             _ => Err(SettingsError::UnknownKey(key.to_string())),
         }
     }
@@ -124,6 +138,21 @@ impl Settings {
                     return Err(bad("a number from 0.4 to 3"));
                 }
                 self.gizmo_size = v;
+            }
+            k if k.len() > 4 && k.starts_with("key.") => {
+                // The apps check the action name and the keys; here they are only stored.
+                let action = k[4..].to_string();
+                match value.trim() {
+                    "default" | "reset" => {
+                        self.keys.remove(&action);
+                    }
+                    "none" | "off" => {
+                        self.keys.insert(action, String::new());
+                    }
+                    v => {
+                        self.keys.insert(action, v.to_string());
+                    }
+                }
             }
             _ => return Err(SettingsError::UnknownKey(key.to_string())),
         }
@@ -270,6 +299,10 @@ mod tests {
             s.set("theme", "neon"),
             Err(SettingsError::BadValue { .. })
         ));
+        s.set("key.orient", "Ctrl+Shift+O").unwrap();
+        assert_eq!(s.get("key.orient").unwrap(), "Ctrl+Shift+O");
+        s.set("key.orient", "default").unwrap();
+        assert_eq!(s.get("key.orient").unwrap(), "default");
         assert!(matches!(
             s.set("font", "big"),
             Err(SettingsError::UnknownKey(_))
@@ -289,6 +322,7 @@ mod tests {
                 console: false,
                 ..Panels::default()
             },
+            keys: [("orient".to_string(), "Ctrl+Shift+O".to_string())].into(),
         };
         s.save_to(&path).unwrap();
         assert_eq!(Settings::load_from(&path).unwrap(), s);

@@ -159,7 +159,12 @@ and match or beat the recorded Lychee results.
 
 - [ ] Nicer material (resin look), outlines, shadows on the plate
 - [ ] Undo/redo history panel, macro recording → `.copalscript`
-- [ ] Editable hotkey map
+- [x] Editable hotkey map (F1, `key.<action>` in the app settings)
+- [x] Layer slider in the 3D view
+- [x] Orientation over all axes: steadiness and upright faces in the score, walls only for hollows
+- [x] No support stubs: buried faces of overlapping parts, narrow grooves, short model-to-model
+- [x] Support base: raft, pads or grid
+- [x] Taskbar name and icon for every package (AppImage writes its own desktop entry)
 - [ ] Autosave and local backups
 - [ ] Reload model when its file changes on disk
 - [ ] Picture view (nice render to share)
@@ -178,7 +183,7 @@ and match or beat the recorded Lychee results.
 - [x] Drain holes: place, size (0.2), auto suggest (0.3)
 - [ ] XY compensation: elephant foot, hole compensation
 - [ ] Measuring tool, physical size mode, layer thickness preview
-- [ ] Print time, resin volume, weight and cost estimate
+- [x] Print time, resin volume, weight and cost estimate (0.4: resin price, summary after slicing)
 - [ ] Problem report panel (islands, traps, thin walls, out of bounds)
 
 ---

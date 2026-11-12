@@ -31,11 +31,13 @@ stage() {
     local dest=$1 edition=$2 prefix=$1/usr
     install -Dm755 "$BIN/copal-cli" "$prefix/bin/copal-cli"
     install -Dm755 "$BIN/copal-lite" "$prefix/bin/copal-lite"
-    install -Dm644 "$HERE/$ID.Lite.desktop" "$prefix/share/applications/$ID.Lite.desktop"
+    sed "s/^Name=.*/& $VERSION/" "$HERE/$ID.Lite.desktop" \
+        | install -Dm644 /dev/stdin "$prefix/share/applications/$ID.Lite.desktop"
     install -Dm644 "$ROOT/assets/logo-256.png" "$prefix/share/icons/hicolor/256x256/apps/$ID.Lite.png"
     if [ "$edition" = full ]; then
         install -Dm755 "$BIN/copal" "$prefix/bin/copal"
-        install -Dm644 "$HERE/$ID.desktop" "$prefix/share/applications/$ID.desktop"
+        sed "s/^Name=.*/& $VERSION/" "$HERE/$ID.desktop" \
+            | install -Dm644 /dev/stdin "$prefix/share/applications/$ID.desktop"
     fi
     # The project icon and file type are shared by both editions.
     install -Dm644 "$ROOT/assets/logo-256.png" "$prefix/share/icons/hicolor/256x256/apps/$ID.png"

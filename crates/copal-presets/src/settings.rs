@@ -132,6 +132,108 @@ pub struct PrintSettings {
     pub exposure: ExposureSettings,
     #[serde(flatten)]
     pub motion: MotionSettings,
+    #[serde(flatten)]
+    pub cost: CostSettings,
+}
+
+/// What the resin costs, for the price of a print.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CostSettings {
+    /// Price of a kilogram or a litre of resin (see `price_per`). 0 = not known.
+    pub resin_price: f32,
+    pub price_per: PriceUnit,
+    /// Shown after the price, e.g. `₽`, `$`, `EUR`.
+    pub currency: Currency,
+    /// Grams per millilitre. Most resins are 1.05 – 1.25.
+    pub resin_density_g_ml: f32,
+}
+
+impl Default for CostSettings {
+    fn default() -> Self {
+        Self {
+            resin_price: 0.0,
+            price_per: PriceUnit::Kg,
+            currency: Currency::new("$"),
+            resin_density_g_ml: 1.1,
+        }
+    }
+}
+
+impl CostSettings {
+    /// Weight of `volume_ml` of resin, g.
+    pub fn weight_g(&self, volume_ml: f32) -> f32 {
+        volume_ml * self.resin_density_g_ml
+    }
+
+    /// Price of `volume_ml` of resin, or `None` when the resin price is not known.
+    pub fn price(&self, volume_ml: f32) -> Option<f32> {
+        (self.resin_price > 0.0).then(|| match self.price_per {
+            PriceUnit::Kg => self.weight_g(volume_ml) / 1000.0 * self.resin_price,
+            PriceUnit::Liter => volume_ml / 1000.0 * self.resin_price,
+        })
+    }
+}
+
+/// What a resin price is for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum PriceUnit {
+    /// Per kilogram.
+    #[default]
+    #[serde(rename = "kg")]
+    Kg,
+    /// Per litre.
+    #[serde(rename = "l", alias = "liter", alias = "litre")]
+    Liter,
+}
+
+/// A short currency sign or code (up to 15 bytes), kept inline so settings stay `Copy`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Currency([u8; 16]);
+
+impl Currency {
+    pub fn new(s: &str) -> Self {
+        let mut b = [0u8; 16];
+        let mut end = 0;
+        for (i, c) in s.trim().char_indices() {
+            if i + c.len_utf8() > 15 {
+                break;
+            }
+            end = i + c.len_utf8();
+        }
+        b[..end].copy_from_slice(&s.trim().as_bytes()[..end]);
+        Self(b)
+    }
+
+    pub fn as_str(&self) -> &str {
+        let len = self.0.iter().position(|b| *b == 0).unwrap_or(16);
+        std::str::from_utf8(&self.0[..len]).unwrap_or("")
+    }
+}
+
+impl std::fmt::Debug for Currency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.as_str())
+    }
+}
+
+impl std::fmt::Display for Currency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for Currency {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for Currency {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        Ok(Currency::new(&s))
+    }
 }
 
 impl PrintSettings {
@@ -183,8 +285,11 @@ pub struct SupportSettings {
     pub auto_parent: bool,
     /// Add supports under islands: parts of a layer not connected to the layer below.
     pub support_islands: bool,
-    /// Raft under the supports.
+    /// A base under the supports (see `base` for which kind).
     pub raft: bool,
+    /// What the base looks like: one raft, a pad under each foot, or feet tied by bars.
+    #[serde(default)]
+    pub base: BaseKind,
     pub raft_thickness_mm: f32,
     /// How far the raft goes past the supports.
     pub raft_margin_mm: f32,
@@ -224,6 +329,7 @@ impl SupportSettings {
             auto_parent: true,
             support_islands: true,
             raft: true,
+            base: BaseKind::Raft,
             raft_thickness_mm: 1.0,
             raft_margin_mm: 2.0,
         }
@@ -237,6 +343,32 @@ impl SupportSettings {
             base_diameter_mm: 3.0,
             density: 1.6,
             ..Self::medium()
+        }
+    }
+}
+
+/// The base the supports stand on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BaseKind {
+    /// One flat plate under all supports: holds best, uses the most resin.
+    #[default]
+    Raft,
+    /// A round pad under each foot.
+    Pads,
+    /// Pads tied together by bars that lie on the plate, like a net: holds well with little
+    /// resin.
+    Grid,
+}
+
+impl BaseKind {
+    pub const ALL: [BaseKind; 3] = [BaseKind::Raft, BaseKind::Pads, BaseKind::Grid];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            BaseKind::Raft => "raft",
+            BaseKind::Pads => "pads",
+            BaseKind::Grid => "grid",
         }
     }
 }

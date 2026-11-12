@@ -31,6 +31,26 @@ In **Settings → Resin → My resin**:
   `.toml` file on the Copal window does the same.
 - **Open folder** opens the resin folder in your file manager.
 
+### The price of a resin (0.4)
+**Settings → Resin → Price**: what a bottle costs **per kilogram** or **per litre**, the currency
+(any text: `₽`, `$`, `EUR`) and the density (grams per millilitre, most resins are 1.05 – 1.25).
+After slicing, Copal shows the resin volume, the weight and the price of the print. **Save as my
+resin** keeps the price in your resin file, so it is there next time. A resin file without a price
+keeps the price you typed before.
+
+In a resin file the price goes into the profile:
+
+```toml
+[[profiles]]
+printer = "elegoo/saturn-4-ultra-16k"
+resin_price = 2500          # per kilogram (or per litre with price_per = "l")
+price_per = "kg"
+currency = "₽"
+resin_density_g_ml = 1.1
+```
+
+In the console: `print.set resin_price=30 price_per=l currency=$`.
+
 ### The resin folder
 Every `.toml` file in the folder is one resin. Copal checks the folder every second or two while
 it runs: copy a file in and it appears in the resin list, edit it and the changes load, delete it

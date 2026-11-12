@@ -56,6 +56,11 @@ chmod +x Copal-<version>-x86_64.AppImage
 
 `Copal-Lite-<version>-x86_64.AppImage` starts Copal Lite.
 
+On the first start the AppImage adds itself to your app menu (a desktop entry in
+`~/.local/share/applications` and the logo in `~/.local/share/icons`), so the taskbar and the dock
+show the Copal logo and "Copal Slicer <version>". Moving the AppImage is fine: the next start fixes
+the path. Delete `io.github.hakiguru.Copal*.desktop` from that folder to remove the entry.
+
 ## Any Linux: Flatpak
 
 ```sh

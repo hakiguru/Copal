@@ -1,5 +1,6 @@
 //! What a set of supports is made of.
 
+use copal_presets::BaseKind;
 use glam::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
@@ -63,6 +64,17 @@ pub struct SupportSet {
     /// Raft outline (relative XY, counter-clockwise). Empty = no raft.
     #[serde(default)]
     pub raft: Vec<Vec2>,
+    /// What kind of base the supports stand on (see [`SupportSet::rebuild_base`]).
+    #[serde(default)]
+    pub base: BaseKind,
+    /// Round pads on the plate (relative XY of their centers), for pads and grid bases.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pads: Vec<Vec2>,
+    #[serde(default)]
+    pub pad_diameter: f32,
+    /// Bars that lie on the plate between pads, for a grid base (relative XY of their ends).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bars: Vec<[Vec2; 2]>,
     pub raft_thickness: f32,
     pub base_diameter: f32,
     /// Height of the cone foot on the plate or raft.
@@ -76,6 +88,10 @@ impl Default for SupportSet {
             supports: Vec::new(),
             braces: Vec::new(),
             raft: Vec::new(),
+            base: BaseKind::Raft,
+            pads: Vec::new(),
+            pad_diameter: 0.0,
+            bars: Vec::new(),
             raft_thickness: 1.0,
             base_diameter: 2.5,
             base_height: 0.8,
@@ -93,12 +109,17 @@ impl SupportSet {
         self.supports.iter().find(|s| s.id == id)
     }
 
-    /// Height of the raft top (0 without a raft).
+    /// Is there a base (raft or pads) under the supports?
+    pub fn has_base(&self) -> bool {
+        !self.raft.is_empty() || !self.pads.is_empty()
+    }
+
+    /// Height of the raft or pad top (0 without a base).
     pub fn raft_top(&self) -> f32 {
-        if self.raft.is_empty() {
-            0.0
-        } else {
+        if self.has_base() {
             self.raft_thickness
+        } else {
+            0.0
         }
     }
 
@@ -123,25 +144,55 @@ impl SupportSet {
         before - self.supports.len()
     }
 
-    /// Recomputes the raft outline around all plate feet: their convex hull, grown by the base
-    /// radius and `margin`. Keeps no raft when `enabled` is false.
+    /// Recomputes the base under all plate feet. Keeps no base when `enabled` is false. See
+    /// [`SupportSet::rebuild_base`].
     pub fn rebuild_raft(&mut self, enabled: bool, margin: f32) {
+        let kind = self.base;
+        self.rebuild_base(enabled.then_some(kind), margin);
+    }
+
+    /// Recomputes the base under all plate feet:
+    ///
+    /// - a raft: the convex hull of the feet, grown by the base radius and `margin`;
+    /// - pads: a round pad under each foot, half again as wide as the foot and `margin` more;
+    /// - a grid: pads tied by bars to their nearest neighbours, so the base is one piece.
+    pub fn rebuild_base(&mut self, kind: Option<BaseKind>, margin: f32) {
         self.raft.clear();
-        if !enabled {
+        self.pads.clear();
+        self.bars.clear();
+        let Some(kind) = kind else {
             return;
-        }
-        let r = self.base_diameter / 2.0 + margin;
-        let mut pts = Vec::new();
-        for s in &self.supports {
-            if s.foot == Foot::Plate {
-                let c = s.column_top().truncate();
-                for k in 0..12 {
-                    let a = k as f32 / 12.0 * std::f32::consts::TAU;
-                    pts.push(c + Vec2::new(a.cos(), a.sin()) * r);
+        };
+        self.base = kind;
+        let feet: Vec<Vec2> = self
+            .plate_feet()
+            .map(|s| s.column_top().truncate())
+            .collect();
+        match kind {
+            BaseKind::Raft => {
+                let r = self.base_diameter / 2.0 + margin;
+                let mut pts = Vec::new();
+                for c in &feet {
+                    for k in 0..12 {
+                        let a = k as f32 / 12.0 * std::f32::consts::TAU;
+                        pts.push(*c + Vec2::new(a.cos(), a.sin()) * r);
+                    }
+                }
+                self.raft = convex_hull(pts);
+            }
+            BaseKind::Pads | BaseKind::Grid => {
+                self.pad_diameter = self.base_diameter * 1.5 + margin.min(2.0);
+                self.pads = feet.clone();
+                if kind == BaseKind::Grid {
+                    self.bars = grid_bars(&feet, self.base_diameter * 6.0 + 6.0);
                 }
             }
         }
-        self.raft = convex_hull(pts);
+    }
+
+    /// Width of the bars of a grid base.
+    pub fn bar_width(&self) -> f32 {
+        (self.base_diameter * 0.5).max(1.0)
     }
 
     /// Lowest point of the supports relative to the object, for checks.
@@ -160,6 +211,56 @@ pub struct DrainHole {
     pub dir: Vec3,
     pub diameter: f32,
     pub depth: f32,
+}
+
+/// Bars for a grid base: every foot to its three nearest neighbours within `reach`, plus the
+/// shortest bars that join all groups into one piece (a spanning tree), whatever the distance.
+pub fn grid_bars(feet: &[Vec2], reach: f32) -> Vec<[Vec2; 2]> {
+    let n = feet.len();
+    if n < 2 {
+        return Vec::new();
+    }
+    let mut pairs: Vec<(f32, usize, usize)> = Vec::new();
+    for i in 0..n {
+        for j in i + 1..n {
+            pairs.push((feet[i].distance(feet[j]), i, j));
+        }
+    }
+    pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut parent: Vec<usize> = (0..n).collect();
+    fn find(p: &mut [usize], mut x: usize) -> usize {
+        while p[x] != x {
+            p[x] = p[p[x]];
+            x = p[x];
+        }
+        x
+    }
+    let mut degree = vec![0u8; n];
+    let mut chosen = std::collections::BTreeSet::new();
+    // The spanning tree first: the base must be one piece.
+    for &(_, i, j) in &pairs {
+        let (a, b) = (find(&mut parent, i), find(&mut parent, j));
+        if a != b {
+            parent[a] = b;
+            chosen.insert((i, j));
+            degree[i] += 1;
+            degree[j] += 1;
+        }
+    }
+    // Then short bars that close the net, so it does not bend.
+    for &(d, i, j) in &pairs {
+        if d > reach {
+            break;
+        }
+        if (degree[i] < 3 || degree[j] < 3) && chosen.insert((i, j)) {
+            degree[i] += 1;
+            degree[j] += 1;
+        }
+    }
+    chosen
+        .into_iter()
+        .map(|(i, j)| [feet[i], feet[j]])
+        .collect()
 }
 
 /// Convex hull, counter-clockwise (Andrew's monotone chain).
@@ -195,6 +296,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_grid_base_is_one_piece() {
+        // Two groups of feet far apart and a stray one.
+        let mut feet = Vec::new();
+        for i in 0..4 {
+            for j in 0..3 {
+                feet.push(Vec2::new(i as f32 * 3.0, j as f32 * 3.0));
+                feet.push(Vec2::new(60.0 + i as f32 * 3.0, j as f32 * 3.0));
+            }
+        }
+        feet.push(Vec2::new(30.0, 40.0));
+        let bars = grid_bars(&feet, 21.0);
+        // Joined: walk the bars from the first foot and reach every foot.
+        let mut seen = vec![false; feet.len()];
+        let mut stack = vec![0];
+        while let Some(i) = stack.pop() {
+            if std::mem::replace(&mut seen[i], true) {
+                continue;
+            }
+            for [a, b] in &bars {
+                for (x, y) in [(a, b), (b, a)] {
+                    if *x == feet[i] {
+                        stack.push(feet.iter().position(|f| f == y).unwrap());
+                    }
+                }
+            }
+        }
+        assert!(seen.iter().all(|s| *s));
+        // A net, not just a chain: more bars than a tree.
+        assert!(bars.len() > feet.len());
+    }
+
+    #[test]
     fn hull_is_ccw_and_round_trips_as_json() {
         let h = convex_hull(vec![
             Vec2::new(0.0, 0.0),
@@ -223,6 +356,10 @@ mod tests {
         });
         set.rebuild_raft(true, 2.0);
         assert!(set.raft.len() >= 8);
+        set.rebuild_base(Some(BaseKind::Pads), 2.0);
+        assert!(set.raft.is_empty() && set.pads.len() == 1 && set.has_base());
+        set.rebuild_raft(true, 2.0);
+        assert_eq!(set.pads.len(), 1, "the kind of base stays");
         let json = serde_json::to_string(&set).unwrap();
         let back: SupportSet = serde_json::from_str(&json).unwrap();
         assert_eq!(back, set);

@@ -37,10 +37,32 @@ What the generator does, most important first:
   there are fewer feet and a smaller raft (**Let close supports share a trunk** in the Supports tab),
 - makes tall supports thicker, because long thin ones sway,
 - ties the trunks into a **lattice** (see below),
-- puts a chamfered raft under all feet (**Raft** in the Supports tab).
+- puts a base under all feet: a raft, pads or a grid (see below).
+
+What it leaves out, so you do not have to cut stubs off the model (0.4):
+- the hidden underside of a part that sits **inside another part**. Models are often made of
+  pieces that overlap (a handle pushed into a body, corner guards on a box). Their buried faces
+  look down, but they are not a surface, and a support there would only poke out somewhere above,
+- the roof of a **narrow groove or slot** (less than 2.5 mm high): it prints like a short bridge,
+- a **short support from the model to the model** (less than 6 mm): it would leave two marks for
+  an overhang that prints well without it. Islands always get their support.
 
 The same model always gets the same supports. Supports you placed by hand stay when you run auto
 supports again.
+
+## The base on the plate (0.4)
+Choose it in **Prepare → 4 · Supports → Base on the plate** or in the Supports tab:
+
+| Base | What it is | Good for |
+|---|---|---|
+| **Raft** | one chamfered plate under all feet | the strongest hold, big and heavy parts |
+| **Pads** | a round pad under each foot | less resin, supports come off the plate one by one |
+| **Grid** | pads tied together by bars that lie on the plate, like a net | holds almost like a raft with much less resin |
+| **None** | only the cone feet of the supports | small parts on a well-levelled plate |
+
+Changing the base rebuilds it under the supports that are already there; the supports themselves
+stay. Raft thickness and margin (Supports tab) set the thickness of all three and the size of the
+pads. In the console: `supports.set base=grid` then `supports.base id=1`.
 
 ## Supports hold each other (0.3)
 A single thin support bends. Tied to its neighbours it does not. With **Auto bracing** on (Supports
@@ -110,7 +132,7 @@ holes too. Where a red dot stays, add a support by hand.
 | Support islands | supports under parts of a layer with nothing below |
 | Manual bracing | braces for supports you add by hand |
 | Auto parent | supports join a trunk next to them (automatic ones and ones added by hand) |
-| Raft, raft thickness, raft margin | the plate under the supports |
+| Base: raft, pads, grid or none; thickness, margin | what the supports stand on |
 
 Save your own mix as a preset with the **Supports presets** row.
 
@@ -126,6 +148,8 @@ supports clear 1
 supports.add id=1 x=10 y=-4 z=22     # one support at a point on the model
 supports.remove id=1 sid=4,7
 supports.resize id=1 sid=4 diameter=1.2 tip=0.5
+supports.set base=pads               # raft, pads or grid; raft=false for none
+supports.base id=1                   # rebuild the base under model 1's supports
 ```
 `copal-cli run part.copal supports.auto id=1` does the same without opening the app.
 

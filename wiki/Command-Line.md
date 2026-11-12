@@ -33,7 +33,7 @@ That is a whole print from a model file, without opening a window.
 | `inspect <file.goo> [--layer N --png out.png]` | Check a printer file, save a layer as a picture |
 | `render <file> [-o out.png] [--view iso] [--size 1200]` | A picture of the plate: models grey, supports orange. Views: `iso`, `front`, `back`, `left`, `right`, `top`, `bottom`, `under` |
 | `commands` | Every document command with its arguments |
-| `settings [theme=…] [mode=…] [gizmo=…]` | The app look |
+| `settings [theme=…] [mode=…] [gizmo=…] [key.<action>=…]` | The app look and keyboard shortcuts (`key.orient=Ctrl+Shift+O`) |
 
 Add `--json` for machine-readable output, `--dry-run` to `run` and `script` to test without saving.
 
@@ -43,7 +43,7 @@ Add `--json` for machine-readable output, `--dry-run` to `run` and `script` to t
 `object.set_transform`, `object.mirror`, `object.duplicate`, `object.drop`, `object.center`,
 `object.reset`, `object.orient`, `object.prepare`, `object.arrange`, `object.rename`,
 `object.remove`, `object.remove_all`, `object.hollow`, `object.unhollow`, `supports.auto`, `supports.add`, `supports.remove`,
-`supports.resize`, `supports.clear`, `holes.add`, `holes.auto`, `holes.remove`, `holes.clear`,
+`supports.resize`, `supports.clear`, `supports.base`, `holes.add`, `holes.auto`, `holes.remove`, `holes.clear`,
 `project.rename`, `project.set_printer`, `project.set_resin`, `print.set`, `supports.set`,
 `hollow.set`, `layout.set`.
 

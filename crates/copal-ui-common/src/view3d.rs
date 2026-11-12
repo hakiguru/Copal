@@ -36,11 +36,17 @@ pub(crate) enum ViewDrag {
     Pan,
 }
 
+/// Faces that need supports: a soft lilac that stands out from the model and the supports.
+pub const OVERHANG_COLOR: [f32; 3] = [0.62, 0.56, 0.88];
+
 /// The layer preview of the Export step.
 #[derive(Default)]
 pub(crate) struct LayerPreview {
     pub show: bool,
     pub layer: u32,
+    /// The layer slider of the 3D view: show models and supports only up to this layer
+    /// (counted from 1). `None` shows everything.
+    pub cut: Option<u32>,
     slicer: Option<(u64, Arc<Slicer>)>,
     texture: Option<(u64, u32, TextureHandle)>,
 }
@@ -484,6 +490,7 @@ impl Workspace {
             }
         }
         self.view_overlay(ui, look, rect);
+        self.layer_slider(ui, look, rect);
     }
 
     /// Position, angles or size of the model being dragged, for the line under the view.
@@ -736,6 +743,16 @@ impl Workspace {
                 lines.push(v(b2.x, b2.y, 0.05, c));
             }
         }
+        let clip_z = self.cut_height();
+        if let Some(z) = clip_z {
+            // Where the layer slider cuts: an outline around the plate at that height.
+            let c = rgba(p.accent, 0.8);
+            for i in 0..4 {
+                let (a, b) = (corners[i], corners[(i + 1) % 4]);
+                lines.push(v(a.0, a.1, z, c));
+                lines.push(v(b.0, b.1, z, c));
+            }
+        }
         let eye_dir = (self.camera.eye() - self.camera.target).normalize();
         let light = (eye_dir + Vec3::new(0.3, 0.2, 0.9)).normalize();
         let overhangs = self.show_overhangs || self.step == Step::Prepare;
@@ -753,7 +770,103 @@ impl Workspace {
                     .to_radians()
                     .cos()
             }),
-            overhang_color: [0.86, 0.26, 0.22],
+            overhang_color: OVERHANG_COLOR,
+            clip_z,
+        }
+    }
+
+    /// Layers of the whole plate, models and supports: (layer height, number of layers).
+    fn plate_layers(&self) -> (f32, u32) {
+        let doc = self.doc();
+        let lh = doc.settings.print.exposure.layer_height_mm.max(0.001);
+        let top = doc
+            .objects()
+            .iter()
+            .filter_map(|o| o.world_bounds())
+            .map(|b| b.max.z)
+            .fold(0.0f32, f32::max);
+        (lh, (top / lh).ceil() as u32)
+    }
+
+    /// Height where the layer slider cuts the view, if it does.
+    fn cut_height(&self) -> Option<f32> {
+        let (lh, count) = self.plate_layers();
+        self.preview
+            .cut
+            .filter(|l| *l < count)
+            .map(|l| l as f32 * lh + lh * 0.01)
+    }
+
+    /// Moves the layer slider by `steps` layers (up is positive).
+    pub fn step_cut(&mut self, steps: i64) {
+        let (_, count) = self.plate_layers();
+        if count == 0 {
+            return;
+        }
+        let now = self.preview.cut.unwrap_or(count) as i64;
+        let next = (now + steps).clamp(1, count as i64) as u32;
+        self.preview.cut = (next < count).then_some(next);
+    }
+
+    /// Shows every layer again.
+    pub fn clear_cut(&mut self) {
+        self.preview.cut = None;
+    }
+
+    /// The layer slider on the right of the 3D view: which layer to look at.
+    fn layer_slider(&mut self, ui: &mut Ui, look: &Look, rect: Rect) {
+        let (lh, count) = self.plate_layers();
+        if count < 2 || rect.height() < 200.0 {
+            return;
+        }
+        let area = Rect::from_min_max(
+            pos2(rect.right() - 74.0, rect.top() + 56.0),
+            pos2(rect.right() - 8.0, rect.bottom() - 16.0),
+        );
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(area)
+                .layout(egui::Layout::top_down(egui::Align::Center)),
+        );
+        let ui = &mut child;
+        let mut l = self.preview.cut.unwrap_or(count).min(count);
+        let label = if l >= count {
+            "All".to_string()
+        } else {
+            format!("{l}")
+        };
+        ui.label(RichText::new(label).small().color(look.pal.accent_text))
+            .on_hover_text("Layer shown in the 3D view");
+        ui.label(
+            RichText::new(format!("{:.2} mm", l as f32 * lh))
+                .small()
+                .color(look.pal.text_weak),
+        );
+        ui.spacing_mut().slider_width = (area.height() - 90.0).max(60.0);
+        let r = ui
+            .add(
+                egui::Slider::new(&mut l, 1..=count)
+                    .vertical()
+                    .show_value(false),
+            )
+            .on_hover_text(format!(
+                "Look at the model up to this layer. {} / {} move it, double-click shows \
+                     every layer.",
+                self.key_text("layer_up"),
+                self.key_text("layer_down")
+            ));
+        if r.double_clicked() {
+            l = count;
+        }
+        if r.changed() || r.double_clicked() {
+            self.preview.cut = (l < count).then_some(l);
+        }
+        if self.preview.cut.is_some()
+            && widgets::button(ui, look, widgets::ButtonKind::Normal, "All")
+                .on_hover_text("Show every layer")
+                .clicked()
+        {
+            self.preview.cut = None;
         }
     }
 
@@ -803,11 +916,12 @@ impl Workspace {
         if self.step == Step::Layout {
             // The three handles, right where the hand already is.
             ui.add_space(10.0);
-            for (mode, name, key) in [
-                (gizmo::Mode::Move, "Move", "G"),
-                (gizmo::Mode::Rotate, "Rotate", "R"),
-                (gizmo::Mode::Scale, "Scale", "S"),
+            for (mode, name, id) in [
+                (gizmo::Mode::Move, "Move", "mode_move"),
+                (gizmo::Mode::Rotate, "Rotate", "mode_rotate"),
+                (gizmo::Mode::Scale, "Scale", "mode_scale"),
             ] {
+                let key = self.key_text(id);
                 if crate::panels::tab_button(ui, look, self.gizmo_mode == mode, name, false)
                     .on_hover_text(format!("{name} handles ({key}). Ctrl snaps."))
                     .clicked()

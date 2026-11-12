@@ -219,3 +219,28 @@ pub fn wordmark(ui: &mut Ui, look: &Look, height: f32) -> Response {
     let size = vec2(w as f32 * scale, h as f32 * scale);
     ui.add(egui::Image::new((look.wordmark.id(), size)))
 }
+
+/// A currency as the UI font can draw it: signs the font lacks (₽, ₴, ₸ …) become their codes.
+pub fn currency_text(ctx: &egui::Context, currency: &str) -> String {
+    let font = egui::FontId::proportional(14.0);
+    if ctx.fonts_mut(|f| f.has_glyphs(&font, currency)) {
+        return currency.to_string();
+    }
+    currency
+        .chars()
+        .map(|c| match c {
+            '₽' => "RUB".to_string(),
+            '₴' => "UAH".to_string(),
+            '₸' => "KZT".to_string(),
+            '₹' => "INR".to_string(),
+            '₺' => "TRY".to_string(),
+            '₩' => "KRW".to_string(),
+            '₪' => "ILS".to_string(),
+            '₫' => "VND".to_string(),
+            '₱' => "PHP".to_string(),
+            '₦' => "NGN".to_string(),
+            '₾' => "GEL".to_string(),
+            c => c.to_string(),
+        })
+        .collect()
+}

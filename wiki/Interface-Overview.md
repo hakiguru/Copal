@@ -1,16 +1,19 @@
 ## Copal
 
 - **Top bar** — the steps **Layout → Prepare → Export** (keys `1` `2` `3`), printer and resin
-  pickers, Open, Save, History, Preferences and **Keys** (the list of shortcuts, `F1`).
+  pickers, Open, Save, History, Preferences and **Keys** (the list of shortcuts, `F1`, where you
+  can change any of them).
 - **Tools** (left) — change with the step. Buttons of one kind stand in a row and have the same
-  size. Layout: import, move / rotate / scale, on plate, center, reset, mirror, duplicate, delete,
-  arrange, auto orient. Prepare: **Prepare for printing** at the top does everything in one
+  size. Layout: import, open from the print history, move / rotate / scale, on plate, center, reset,
+  mirror, duplicate, delete, arrange, auto orient. Prepare: **Prepare for printing** at the top does everything in one
   click; below it the same steps in the order you work: 1 Orientation, 2 Hollow, 3 Drain holes,
-  4 Supports. Export: slice, layer preview, recent prints.
+  4 Supports (with the base on the plate: raft, pads, grid or none). Export: slice, layer
+  preview, recent prints.
 - **3D view** (center) — the build plate, your models and the handles of the selected model.
   Buttons on top: Iso / Top / Front / Side / Fit, Overhangs, Move / Rotate / Scale and handle size
-  − / + in Layout, Layers in the Export step. A small triangle in front of the plate marks the
-  front. A line under the view shows what a drag is doing, and warns about models outside the
+  − / + in Layout, Layers in the Export step. On the right, the **layer slider** cuts the view at
+  any layer (`Alt+Up` / `Alt+Down`). Faces that need supports are tinted soft lilac. A small
+  triangle in front of the plate marks the front. A line under the view shows what a drag is doing, and warns about models outside the
   build volume (they turn red).
 - **Settings tabs** (right) — **Object**, **Resin**, **Print**, **Layout**, **Supports**, **Hollow**.
   When the panel is narrow, the tabs wrap into two or more rows. Each tab except Object can save
@@ -33,6 +36,14 @@ Copal remembers which panels are open. In Copal Lite the same switches are in th
 
 The same features in a plain window: menus (File, Edit, View, Prepare, Help) with the steps next
 to them, tools on the left, settings tabs on the right, the console at the bottom.
+
+## Name and icon in the taskbar
+
+The window is called **Copal Slicer** with the version (or **Copal Slicer Lite**) and has the
+Copal logo in the taskbar and the dock. The packages install a desktop entry for that. The
+AppImage and the `.tar.gz` write their own entry into `~/.local/share/applications` on the first
+start (and update the path when you move the AppImage). If the dock still shows a gear, close the
+app and start it once more.
 
 ## Themes
 

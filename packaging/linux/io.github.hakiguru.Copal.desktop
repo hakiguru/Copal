@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Copal
+Name=Copal Slicer
 GenericName=Resin 3D printing slicer
 Comment=Prepare 3D models for resin (MSLA) printers
 Exec=copal %F

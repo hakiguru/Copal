@@ -1,12 +1,13 @@
 ## The print came off the plate, or tore off its supports
 One layer pulled harder on the film than the plate and the supports could hold.
 
-- Turn the model: **Prepare → 1 · Orientation → Strong → Auto orient**. It then stands on its
-  narrow side and every layer is as small as it can be. See [[Auto orientation|Auto-Orientation]].
+- Turn the model: **Prepare → 1 · Orientation → Balanced → Auto orient**. A flat or boxy part then
+  leans on two axes, so a corner prints first and no big face is level or upright.
+  **Strong** makes every layer as small as it can be. See [[Auto orientation|Auto-Orientation]].
 - Hollow big parts and give them drain holes. A hollow without holes sucks itself onto the film.
   The line under **3 · Drain holes** must say the holes open the hollow.
   See [[Hollowing and drain holes|Hollowing-and-Drain-Holes]].
-- Use the **Heavy** support preset and keep the raft on. See [[Supports]].
+- Use the **Heavy** support preset with a **Raft** or **Grid** base. See [[Supports]].
 - Press **Check islands**: no red dots may be left.
 - Use more bottom layers or a longer bottom exposure (Print tab), and level the plate.
 - Lift more slowly (Print tab → lift speed). Cold resin is thick: warm the room.
@@ -18,6 +19,15 @@ line under **3 · Drain holes**. Each separate hollow needs two holes.
 ## A support is missing where I need one
 Choose **Add** (`A`) in **Prepare → 4 · Supports** and click on the model. The new support joins
 the ones around it. Supports you add by hand stay when you run auto supports again.
+
+## Supports leave stubs on top of the model
+Copal 0.4 no longer puts supports under parts hidden inside other parts, in narrow grooves, or
+short ones from the model to the model. Run **Auto supports** again on old projects. A stub you
+still don't want: **Select** (`B`), click it, `Delete`.
+
+## The taskbar shows a gear and `io.github.hakiguru.Copal`
+That was the AppImage before 0.4. From 0.4 on it adds its own desktop entry on the first start;
+close the app and start it again once.
 
 ## Copal does not start or the window is black
 Your graphics driver may be too old for the full app. Install **Copal Lite**: it runs on old

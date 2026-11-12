@@ -63,9 +63,9 @@ Source: "..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"
 Source: "..\..\README.md"; DestDir: "{app}"
 
 [Icons]
-Name: "{autoprograms}\Copal"; Filename: "{app}\copal.exe"
-Name: "{autoprograms}\Copal Lite"; Filename: "{app}\copal-lite.exe"
-Name: "{autodesktop}\Copal"; Filename: "{app}\copal.exe"; Tasks: desktopicon
+Name: "{autoprograms}\Copal Slicer"; Filename: "{app}\copal.exe"
+Name: "{autoprograms}\Copal Slicer Lite"; Filename: "{app}\copal-lite.exe"
+Name: "{autodesktop}\Copal Slicer"; Filename: "{app}\copal.exe"; Tasks: desktopicon
 
 [Registry]
 Root: HKA; Subkey: "Software\Classes\.copal"; ValueType: string; ValueName: ""; ValueData: "Copal.Project"; Flags: uninsdeletevalue; Tasks: associate

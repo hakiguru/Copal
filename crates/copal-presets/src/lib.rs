@@ -15,8 +15,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use settings::{
-    ExposureSettings, HollowSettings, LayoutSettings, MotionSettings, PrintSettings,
-    SupportSettings,
+    BaseKind, CostSettings, Currency, ExposureSettings, HollowSettings, LayoutSettings,
+    MotionSettings, PriceUnit, PrintSettings, SupportSettings,
 };
 
 mod builtin {

@@ -165,9 +165,34 @@ pub fn build_mesh(set: &SupportSet, position: Vec3) -> SupportMesh {
         let c = sb.column_top().truncate().extend(b.zb) + position;
         frustum(m, a, b.diameter / 2.0, c, b.diameter / 2.0, 6);
     }
+    let shift = position.truncate();
     if !set.raft.is_empty() {
-        let outline: Vec<Vec2> = set.raft.iter().map(|v| *v + position.truncate()).collect();
+        let outline: Vec<Vec2> = set.raft.iter().map(|v| *v + shift).collect();
         raft(m, &outline, set.raft_thickness);
+    }
+    let r = set.pad_diameter / 2.0;
+    for c in &set.pads {
+        let outline: Vec<Vec2> = (0..20)
+            .map(|k| {
+                let a = k as f32 / 20.0 * std::f32::consts::TAU;
+                *c + shift + Vec2::new(a.cos(), a.sin()) * r
+            })
+            .collect();
+        raft(m, &outline, set.raft_thickness);
+    }
+    let w = set.bar_width() / 2.0;
+    for [a, b] in &set.bars {
+        let d = (*b - *a).normalize_or_zero();
+        if d == Vec2::ZERO {
+            continue;
+        }
+        let side = d.perp() * w;
+        let (a, b) = (*a + shift, *b + shift);
+        raft(
+            m,
+            &[a - side, b - side, b + side, a + side],
+            set.raft_thickness,
+        );
     }
     out
 }

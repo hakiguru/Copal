@@ -12,7 +12,7 @@ use crate::theme::{self, Edition, RADIUS};
 
 static LOGO_PNG: &[u8] = include_bytes!("../../../assets/logo-16.png");
 static WORDMARK_PNG: &[u8] = include_bytes!("../../../assets/wordmark-1x.png");
-static ICON_PNG: &[u8] = include_bytes!("../../../assets/logo-256.png");
+pub(crate) static ICON_PNG: &[u8] = include_bytes!("../../../assets/logo-256.png");
 
 /// What kind of thing gets an outline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

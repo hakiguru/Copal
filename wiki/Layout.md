@@ -26,7 +26,9 @@ While you drag, a line under the 3D view shows the position, the angles or the s
 
 Hold **Ctrl** while dragging to snap: 1 mm, 15° and 10 % by default (Layout tab).
 Too big or too small? The **− / +** buttons over the 3D view change the size of the handles.
-**Move**, **Rotate** and **Scale** are over the 3D view too, next to the camera buttons.
+**Move**, **Rotate** and **Scale** are over the 3D view too, next to the camera buttons. The three
+modes have their own keys, `G`, `R` and `S` by default; change them in **Keys** (`F1`), see
+[[Hotkeys]].
 
 ## Other tools
 The tools panel has them in rows:

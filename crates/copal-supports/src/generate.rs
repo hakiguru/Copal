@@ -59,6 +59,10 @@ pub fn spacing_for(s: &SupportSettings) -> f32 {
 const HEAVY_ZONE: f32 = 2.0;
 /// Supports in the heavy zone stand this much closer.
 const HEAVY_DENSER: f32 = 0.75;
+/// Overhangs closer than this above the model print as a bridge and get no support, mm.
+const SHALLOW: f32 = 2.5;
+/// Supports that stand on the model are at least this long, unless they hold an island, mm.
+const MIN_MODEL_DROP: f32 = 6.0;
 /// At most this many supports join one trunk.
 const MAX_CHILDREN: u8 = 2;
 
@@ -769,6 +773,7 @@ pub fn generate_for(
             set.push(*m);
         }
     }
+    set.base = s.base;
     if s.raft {
         // A placeholder outline so base_top() counts the raft while routing.
         set.raft = vec![Vec2::ZERO; 3];
@@ -801,7 +806,16 @@ pub fn generate_for(
     }
     if mode == Mode::Auto {
         let cos_limit = s.overhang_angle_deg.to_radians().cos();
-        cands.extend(find_overhangs(bvh.triangles(), cos_limit, spacing, zmin).contacts);
+        let found = find_overhangs(bvh.triangles(), cos_limit, spacing, zmin).contacts;
+        cands.extend(found.into_iter().filter(|c| {
+            // Models are often made of parts that overlap. The underside of a part that is
+            // buried in another one is not a surface: a support there would only poke out of
+            // the model as a stub somewhere above.
+            bvh.winding(c.point + c.normal * 0.05) < 1
+                // The roof of a narrow slot or groove prints as a short bridge. A support there
+                // would stand on the model and leave a stub that is hard to cut off.
+                && router.raycast(c.point, Vec3::NEG_Z, 0.05, SHALLOW).is_none()
+        }));
     }
     // The most important first, then from the bottom up: low points matter most.
     cands.sort_by(|a, b| {
@@ -856,6 +870,14 @@ pub fn generate_for(
         let Some((mut route, tip_d, mut dia)) = found else {
             continue;
         };
+        // A short support from the model to the model leaves two marks and a stub that is hard
+        // to cut off, for an overhang that prints well without it.
+        if let Foot::Model { point } = route.foot
+            && !c.reason.must()
+            && c.point.z - point.z < MIN_MODEL_DROP
+        {
+            continue;
+        }
         // Tall supports sway; they get a thicker body, up to half as much again at 13 cm.
         let length = route.knee.unwrap_or(route.joint).z - router.base_top;
         if route.foot == Foot::Plate {
@@ -1087,7 +1109,8 @@ pub fn add_manual_for(
         set.base_diameter = s.base_diameter_mm;
     }
     let raft_wanted = s.raft;
-    if raft_wanted && set.raft.is_empty() {
+    set.base = s.base;
+    if raft_wanted && !set.has_base() {
         set.raft = vec![Vec2::ZERO; 3];
     }
     let router = target.router(s, set.base_top());
@@ -1240,6 +1263,47 @@ mod tests {
         let mesh = build_mesh(&set, pos);
         assert!(mesh.mesh.volume() > 0.0);
         assert_eq!(mesh.ranges.len(), set.supports.len());
+    }
+
+    #[test]
+    fn no_stubs_from_buried_parts_or_narrow_grooves() {
+        let s = SupportSettings::medium();
+        let lift = 5.0 + s.raft_thickness_mm;
+        // A slab, a block sunk into its top (its underside is buried), and a lid that hangs
+        // 1 mm over the slab (a groove under it).
+        let mut m = Mesh::cuboid(Vec3::new(30.0, 30.0, 10.0));
+        let mut block = Mesh::cuboid(Vec3::new(6.0, 8.0, 8.0));
+        for p in &mut block.positions {
+            *p += Vec3::new(-14.0, 0.0, 6.0);
+        }
+        let mut lid = Mesh::cuboid(Vec3::new(10.0, 30.0, 3.0));
+        for p in &mut lid.positions {
+            *p += Vec3::new(7.0, 0.0, 11.0);
+        }
+        m.append(&block);
+        m.append(&lid);
+        let mut post = Mesh::cuboid(Vec3::new(4.0, 30.0, 2.0));
+        for p in &mut post.positions {
+            *p += Vec3::new(13.0, 0.0, 9.5);
+        }
+        m.append(&post);
+        let pos = Vec3::new(0.0, 0.0, lift);
+        let bvh = Bvh::from_mesh(&m, &Mat4::from_translation(pos));
+        let set = generate(&bvh, pos, &s, Mode::Auto, None);
+        assert!(!set.supports.is_empty());
+        for sp in &set.supports {
+            let tip = sp.tip + pos;
+            assert_eq!(
+                bvh.winding(tip + sp.normal * 0.05),
+                0,
+                "a support inside at {tip}"
+            );
+            // Only the slab and the free part of the block hang over.
+            assert!(
+                tip.z < lift + 0.5 || (tip.x < -15.0 && tip.z < lift + 6.5),
+                "{tip}"
+            );
+        }
     }
 
     #[test]

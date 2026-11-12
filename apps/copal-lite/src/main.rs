@@ -33,7 +33,7 @@ impl eframe::App for LiteApp {
         ws.poll_presets(ui.ctx());
         ws.dropped_files(ui);
         ws.hotkeys(ui);
-        let title = ws.title().replace("— Copal", "— Copal Lite");
+        let title = ws.title().replace("— Copal Slicer", "— Copal Slicer Lite");
         if title != self.last_title {
             ui.ctx()
                 .send_viewport_cmd(ViewportCommand::Title(title.clone()));
@@ -115,15 +115,24 @@ impl eframe::App for LiteApp {
                         }
                     });
                     ui.menu_button("Prepare", |ui| {
-                        if ui.button("Prepare for printing   Ctrl+P").clicked() {
+                        if ui
+                            .button(format!("Prepare for printing   {}", ws.key_text("prepare")))
+                            .clicked()
+                        {
                             ws.step = Step::Prepare;
                             ws.prepare_for_printing(false);
                         }
-                        if ui.button("Auto orient   Ctrl+T").clicked() {
+                        if ui
+                            .button(format!("Auto orient   {}", ws.key_text("orient")))
+                            .clicked()
+                        {
                             ws.auto_orient(false);
                         }
                         ui.separator();
-                        if ui.button("Auto supports   Ctrl+U").clicked() {
+                        if ui
+                            .button(format!("Auto supports   {}", ws.key_text("auto_supports")))
+                            .clicked()
+                        {
                             ws.step = Step::Prepare;
                             ws.auto_supports(false);
                         }
@@ -175,15 +184,18 @@ impl eframe::App for LiteApp {
         ws.history_window(ui.ctx(), look);
         ws.settings_window(ui.ctx(), look);
         ws.hotkeys_window(ui.ctx(), look);
+        ws.summary_window(ui.ctx(), look);
     }
 }
 
 fn main() -> eframe::Result {
     let files: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
+    // Name and icon in the taskbar, also when run as an AppImage.
+    copal_ui_common::desktop::integrate(Edition::Lite);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("Copal Lite")
-            .with_app_id("io.github.hakiguru.Copal.Lite")
+            .with_title(copal_ui_common::desktop::app_name(Edition::Lite))
+            .with_app_id(copal_ui_common::desktop::app_id(Edition::Lite))
             .with_inner_size([1180.0, 760.0])
             .with_min_inner_size([800.0, 520.0])
             .with_icon(copal_ui_common::look::icon())

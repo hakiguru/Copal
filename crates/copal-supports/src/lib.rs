@@ -13,6 +13,7 @@ pub mod model;
 pub mod orient;
 
 pub use copal_mesh::Mesh;
+pub use copal_presets::BaseKind;
 pub use generate::{
     Contact, Mode, Overhangs, Reason, Target, add_manual, add_manual_for, find_overhangs, generate,
     generate_for, spacing_for,

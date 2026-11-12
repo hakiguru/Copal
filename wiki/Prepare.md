@@ -38,8 +38,9 @@ Each part of the panel does one step on its own, with more choices:
 - [[Auto orientation|Auto-Orientation]] — four goals: Balanced, Strong, Clean, Low.
 - [[Hollowing and drain holes|Hollowing-and-Drain-Holes]] — wall thickness, automatic holes, holes
   by click, and a line that says if the holes really open the hollow.
-- [[Supports]] — Light / Medium / Heavy, everywhere or islands only, supports by click that join
-  the ones already there, selecting and deleting, the islands check.
+- [[Supports]] — Light / Medium / Heavy, the base on the plate (raft, pads, grid or none),
+  everywhere or islands only, supports by click that join the ones already there, selecting and
+  deleting, the islands check.
 
 ## Overhang check
 In the **Prepare** step faces that point down more steeply than the overhang angle turn red: they

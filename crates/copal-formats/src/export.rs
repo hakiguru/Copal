@@ -15,9 +15,6 @@ use rayon::prelude::*;
 use crate::goo::{self, Header, LayerDef, LayerEncoder, Preview};
 use crate::thumbnail;
 
-/// Typical resin density, g/ml, for the weight estimate.
-pub const RESIN_DENSITY: f32 = 1.1;
-
 #[derive(Debug, thiserror::Error)]
 pub enum ExportError {
     #[error("choose a printer first (project.set_printer)")]
@@ -48,6 +45,10 @@ pub struct ExportReport {
     pub height_mm: f32,
     pub volume_ml: f32,
     pub weight_g: f32,
+    /// Price of the resin, when the resin price is known (see `CostSettings`).
+    pub price: Option<f32>,
+    /// Currency of the price.
+    pub currency: String,
     pub print_time_s: f32,
     pub file_bytes: u64,
     /// The big preview as RGB, for the print history.
@@ -308,7 +309,12 @@ pub fn export(
         let px = printer.pixel_mm();
         let volume_mm3 = lit * (px[0] * px[1] * settings.exposure.layer_height_mm) as f64;
         header.volume_mm3 = volume_mm3 as f32;
-        header.weight_g = (volume_mm3 / 1000.0) as f32 * RESIN_DENSITY;
+        let ml = (volume_mm3 / 1000.0) as f32;
+        header.weight_g = settings.cost.weight_g(ml);
+        if let Some(price) = settings.cost.price(ml) {
+            header.price = price;
+            header.price_unit = settings.cost.currency.to_string();
+        }
         header.print_time_s = settings.estimate_time_s(layers) as u32;
         use std::io::Seek;
         file.seek(std::io::SeekFrom::Start(0))?;
@@ -329,7 +335,9 @@ pub fn export(
                 layers,
                 height_mm: layers as f32 * settings.exposure.layer_height_mm,
                 volume_ml,
-                weight_g: volume_ml * RESIN_DENSITY,
+                weight_g: settings.cost.weight_g(volume_ml),
+                price: settings.cost.price(volume_ml),
+                currency: settings.cost.currency.to_string(),
                 print_time_s: settings.estimate_time_s(layers),
                 file_bytes,
                 preview_rgb: big,
@@ -452,6 +460,9 @@ pub fn export_and_record(
             r.layers = report.layers;
             r.height_mm = report.height_mm;
             r.volume_ml = report.volume_ml;
+            r.weight_g = report.weight_g;
+            r.price = report.price;
+            r.currency = report.currency.clone();
             r.print_time_s = report.print_time_s;
             let preview = png(
                 &report.preview_rgb,

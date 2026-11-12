@@ -48,13 +48,13 @@ impl Goal {
         }
     }
 
-    /// Weights of (biggest layer, growth, overhang, height).
-    fn weights(self) -> [f32; 4] {
+    /// Weights of (biggest layer, growth, overhang, height, slenderness).
+    fn weights(self) -> [f32; 5] {
         match self {
-            Goal::Balanced => [1.0, 1.0, 6.0, 0.4],
-            Goal::Strong => [1.5, 1.5, 1.0, 0.0],
-            Goal::FewSupports => [0.3, 0.5, 9.0, 0.2],
-            Goal::Fast => [0.4, 0.5, 2.0, 3.0],
+            Goal::Balanced => [1.0, 1.0, 6.0, 0.4, LEVER],
+            Goal::Strong => [1.5, 1.5, 1.0, 0.0, LEVER],
+            Goal::FewSupports => [0.3, 0.5, 9.0, 0.2, LEVER],
+            Goal::Fast => [0.4, 0.5, 2.0, 3.0, LEVER],
         }
     }
 }
@@ -74,7 +74,26 @@ pub struct OrientStats {
     /// The overhang area with flatter faces counted more: they need the most supports and show
     /// the most marks. Level faces count in full, faces at the overhang angle a quarter.
     pub support_load: f32,
+    /// Area the model covers on the plate seen from above, mm². The supports stand on it.
+    pub footprint: f32,
+    /// Area of faces that stand straight up, mm². Their lower edges are level lines that appear
+    /// in one layer and need a row of supports; a model tilted on two axes has none.
+    pub upright_area: f32,
 }
+
+impl OrientStats {
+    /// How tall the model is for how wide it stands: a tall model on a narrow base sways on its
+    /// supports with every peel and breaks off. 1 is a cube.
+    pub fn slenderness(&self) -> f32 {
+        self.height / self.footprint.max(1e-6).sqrt()
+    }
+}
+
+/// Weight of faces that stand straight up.
+const UPRIGHT_WEIGHT: f32 = 6.0;
+
+/// Weight of slenderness: the same for every goal, a model that falls off prints nothing.
+const LEVER: f32 = 1.2;
 
 /// A way to turn the model.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -90,11 +109,76 @@ pub struct Oriented {
 pub struct Analyzer {
     /// Centers of the voxels inside the model.
     voxels: Vec<Vec3>,
+    /// The voxels that print: all of them, or only the walls of a hollow.
+    walls: Vec<Vec3>,
     voxel: f32,
     /// Faces grouped by direction: (unit normal, area).
     normals: Vec<(Vec3, f32)>,
     surface: f32,
     cos_limit: f32,
+}
+
+/// For every voxel of `layers`: whether it lies within `wall` mm of the outside.
+fn shell_depth(layers: &[Vec<bool>], nx: usize, ny: usize, wall: f32, v: f32) -> Vec<Vec<bool>> {
+    let nz = layers.len();
+    let steps = (wall / v).ceil().max(1.0) as u16;
+    let mut dist = vec![u16::MAX; nx * ny * nz];
+    let mut queue = std::collections::VecDeque::new();
+    let id = |c: usize, r: usize, k: usize| (k * ny + r) * nx + c;
+    for k in 0..nz {
+        for r in 0..ny {
+            for c in 0..nx {
+                let inside = layers[k][r * nx + c];
+                let border =
+                    c == 0 || r == 0 || c + 1 == nx || r + 1 == ny || k == 0 || k + 1 == nz;
+                if !inside {
+                    dist[id(c, r, k)] = 0;
+                    queue.push_back((c, r, k));
+                } else if border {
+                    dist[id(c, r, k)] = 1;
+                    queue.push_back((c, r, k));
+                }
+            }
+        }
+    }
+    while let Some((c, r, k)) = queue.pop_front() {
+        let d = dist[id(c, r, k)];
+        if d >= steps {
+            continue;
+        }
+        let mut go = |c: usize, r: usize, k: usize| {
+            let i = id(c, r, k);
+            if dist[i] == u16::MAX {
+                dist[i] = d + 1;
+                queue.push_back((c, r, k));
+            }
+        };
+        if c > 0 {
+            go(c - 1, r, k)
+        }
+        if r > 0 {
+            go(c, r - 1, k)
+        }
+        if k > 0 {
+            go(c, r, k - 1)
+        }
+        if c + 1 < nx {
+            go(c + 1, r, k)
+        }
+        if r + 1 < ny {
+            go(c, r + 1, k)
+        }
+        if k + 1 < nz {
+            go(c, r, k + 1)
+        }
+    }
+    (0..nz)
+        .map(|k| {
+            (0..nx * ny)
+                .map(|i| dist[k * nx * ny + i] <= steps)
+                .collect()
+        })
+        .collect()
 }
 
 /// Voxels along the longest side of the model.
@@ -103,6 +187,12 @@ const GRID: f32 = 44.0;
 impl Analyzer {
     /// `tris` is the model at its real size. `cos_limit` is the cosine of the overhang angle.
     pub fn new(tris: &[[Vec3; 3]], cos_limit: f32) -> Option<Analyzer> {
+        Self::with_wall(tris, cos_limit, None)
+    }
+
+    /// Like [`Analyzer::new`] for a model that will be hollowed with walls `wall` mm thick: only
+    /// the walls pull on the film, so only they count for the area of a layer.
+    pub fn with_wall(tris: &[[Vec3; 3]], cos_limit: f32, wall: Option<f32>) -> Option<Analyzer> {
         let (mut lo, mut hi) = (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY));
         for t in tris {
             for p in t {
@@ -118,29 +208,40 @@ impl Analyzer {
         let center = (lo + hi) / 2.0;
         let shift = Vec3::new(-center.x, -center.y, -lo.z);
         let moved: Vec<[Vec3; 3]> = tris.iter().map(|t| t.map(|p| p + shift)).collect();
-        let nx = (size.x / v).ceil() as u32 + 2;
-        let ny = (size.y / v).ceil() as u32 + 2;
-        let raster = Raster::new([nx, ny], [nx as f32 * v, ny as f32 * v]);
+        let nx = (size.x / v).ceil() as usize + 2;
+        let ny = (size.y / v).ceil() as usize + 2;
+        let raster = Raster::new([nx as u32, ny as u32], [nx as f32 * v, ny as f32 * v]);
         let slicer = Slicer::new(moved, raster, v, 1);
-        let voxels: Vec<Vec3> = (0..slicer.layer_count())
+        let nz = slicer.layer_count();
+        let layers: Vec<Vec<bool>> = (0..nz)
             .into_par_iter()
-            .flat_map_iter(|k| {
+            .map(|k| {
                 let (img, _) = slicer.layer_image(k);
-                let z = (k as f32 + 0.5) * v;
-                img.into_iter()
-                    .enumerate()
-                    .filter(|(_, px)| *px >= 128)
-                    .map(move |(i, _)| {
-                        let (c, r) = (i as u32 % nx, i as u32 / nx);
-                        Vec3::new(
-                            (c as f32 + 0.5 - nx as f32 / 2.0) * v,
-                            (ny as f32 / 2.0 - r as f32 - 0.5) * v,
-                            z,
-                        ) - shift
-                    })
-                    .collect::<Vec<_>>()
+                img.into_iter().map(|px| px >= 128).collect()
             })
             .collect();
+        let at = |c: usize, r: usize, k: usize| {
+            Vec3::new(
+                (c as f32 + 0.5 - nx as f32 / 2.0) * v,
+                (ny as f32 / 2.0 - r as f32 - 0.5) * v,
+                (k as f32 + 0.5) * v,
+            ) - shift
+        };
+        let mut voxels = Vec::new();
+        let mut walls = Vec::new();
+        // Steps in from the outside, for the walls of a hollow.
+        let depth = wall.map(|w| shell_depth(&layers, nx, ny, w, v));
+        for (k, layer) in layers.iter().enumerate() {
+            for (i, inside) in layer.iter().enumerate() {
+                if *inside {
+                    let p = at(i % nx, i / nx, k);
+                    voxels.push(p);
+                    if depth.as_ref().is_none_or(|d| d[k][i]) {
+                        walls.push(p);
+                    }
+                }
+            }
+        }
         if voxels.is_empty() {
             return None;
         }
@@ -177,6 +278,7 @@ impl Analyzer {
         });
         Some(Analyzer {
             voxels,
+            walls,
             voxel: v,
             normals,
             surface,
@@ -196,7 +298,7 @@ impl Analyzer {
         }
         let bins = ((hi - lo) / v).floor() as usize + 1;
         let mut count = vec![0f32; bins + 2];
-        for p in &self.voxels {
+        for p in &self.walls {
             let h = (-down.dot(*p) - lo) / v;
             // Shared between two neighbouring layers, so tilted cuts come out smooth.
             let k = h.floor();
@@ -219,8 +321,14 @@ impl Analyzer {
         let soft = (self.cos_limit.clamp(-1.0, 1.0).acos() + 15f32.to_radians())
             .min(std::f32::consts::FRAC_PI_2)
             .cos();
+        let mut upright_area = 0.0;
+        // Up to 12° from straight up.
+        const UPRIGHT: f32 = 0.208;
         for (n, a) in &self.normals {
             let c = n.dot(down);
+            if c.abs() < UPRIGHT {
+                upright_area += a * (1.0 - c.abs() / UPRIGHT);
+            }
             if c > self.cos_limit {
                 overhang_area += a;
                 let flat = (c - self.cos_limit) / (1.0 - self.cos_limit).max(1e-6);
@@ -235,7 +343,33 @@ impl Analyzer {
             growth,
             overhang_area,
             support_load,
+            footprint: self.footprint(down),
+            upright_area,
         }
+    }
+
+    /// Area of the shadow of the model on the plate, with light coming from `-down`.
+    fn footprint(&self, down: Vec3) -> f32 {
+        let tilt = Quat::from_rotation_arc(down, Vec3::NEG_Z);
+        let v = self.voxel;
+        let pts: Vec<Vec2> = self
+            .voxels
+            .iter()
+            .map(|p| (tilt * *p).truncate() / v)
+            .collect();
+        let (mut lo, mut hi) = (Vec2::splat(f32::INFINITY), Vec2::splat(f32::NEG_INFINITY));
+        for p in &pts {
+            lo = lo.min(*p);
+            hi = hi.max(*p);
+        }
+        let w = (hi.x - lo.x) as usize + 1;
+        let h = (hi.y - lo.y) as usize + 1;
+        let mut cells = vec![false; w * h];
+        for p in &pts {
+            let (c, r) = ((p.x - lo.x) as usize, (p.y - lo.y) as usize);
+            cells[r.min(h - 1) * w + c.min(w - 1)] = true;
+        }
+        cells.iter().filter(|c| **c).count() as f32 * v * v
     }
 
     /// The best way to turn the model for `goal`.
@@ -272,12 +406,19 @@ impl Analyzer {
             .map(|(_, s)| s.height)
             .fold(0.0, f32::max)
             .max(1e-6);
+        let min_lever = all
+            .iter()
+            .map(|(_, s)| s.slenderness())
+            .fold(f32::INFINITY, f32::min)
+            .max(1e-6);
         let w = goal.weights();
         let score = |s: &OrientStats| {
             w[0] * s.peak_area / min_peak
                 + w[1] * s.growth / min_peak
                 + w[2] * s.support_load / self.surface.max(1e-6)
                 + w[3] * s.height / max_height
+                + w[4] * s.slenderness() / min_lever
+                + UPRIGHT_WEIGHT * s.upright_area / self.surface.max(1e-6)
         };
         let mut ranked: Vec<(f32, Vec3, OrientStats)> =
             all.into_iter().map(|(d, s)| (score(&s), d, s)).collect();
@@ -380,6 +521,36 @@ mod tests {
         // The fast goal keeps the print low.
         let fast = a.best(Goal::Fast, None).unwrap();
         assert!(fast.stats.height < best.stats.height, "{fast:?} {best:?}");
+    }
+
+    #[test]
+    fn a_suitcase_leans_on_two_axes_and_does_not_stand_on_its_end() {
+        // A suitcase-like box: long, thin and tall.
+        let m = Mesh::cuboid(Vec3::new(90.0, 28.0, 62.0));
+        let tris = Bvh::from_mesh(&m, &Mat4::IDENTITY).triangles().to_vec();
+        for wall in [None, Some(2.5)] {
+            let a = Analyzer::with_wall(&tris, 45f32.to_radians().cos(), wall).unwrap();
+            let best = a.best(Goal::Balanced, None).unwrap();
+            // Not a tall tower on a small end.
+            assert!(best.stats.slenderness() < 1.4, "{wall:?} {best:?}");
+            // No face is level and none stands straight up: it is turned on two axes.
+            for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+                let n = best.rotation * axis;
+                assert!(n.z.abs() < 0.97, "{wall:?}: {axis} is level: {n}");
+                assert!(n.z.abs() > 0.1, "{wall:?}: {axis} stands upright: {n}");
+            }
+        }
+    }
+
+    #[test]
+    fn walls_of_a_hollow_make_smaller_layers() {
+        let solid = Analyzer::new(&slab(), 0.7).unwrap();
+        let hollow = Analyzer::with_wall(&slab(), 0.7, Some(2.0)).unwrap();
+        // Tilted, so no wall lies in one layer.
+        let down = Vec3::new(-1.0, -1.0, -1.0);
+        let (s, h) = (solid.stats(down), hollow.stats(down));
+        assert!(h.peak_area < s.peak_area * 0.8, "{s:?} {h:?}");
+        assert_eq!(s.footprint, h.footprint);
     }
 
     #[test]

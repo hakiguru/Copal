@@ -349,7 +349,12 @@ impl Command for SetMachine {
         if let (Some(printer), Some(resin)) = (&doc.printer, &doc.resin)
             && let Some(profile) = lib.resin(resin).and_then(|r| r.profile_for(printer))
         {
+            let cost = doc.settings.print.cost;
             doc.settings.print = profile.settings;
+            // A resin file without a price keeps the price typed in before.
+            if profile.settings.cost.resin_price <= 0.0 {
+                doc.settings.print.cost = cost;
+            }
         }
         Ok(Box::new(undo))
     }

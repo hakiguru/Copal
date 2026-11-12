@@ -158,15 +158,18 @@ impl eframe::App for CopalApp {
         ws.history_window(ui.ctx(), look);
         ws.settings_window(ui.ctx(), look);
         ws.hotkeys_window(ui.ctx(), look);
+        ws.summary_window(ui.ctx(), look);
     }
 }
 
 fn main() -> eframe::Result {
     let files: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
+    // Name and icon in the taskbar, also when run as an AppImage.
+    copal_ui_common::desktop::integrate(Edition::Full);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("Copal")
-            .with_app_id("io.github.hakiguru.Copal")
+            .with_title(copal_ui_common::desktop::app_name(Edition::Full))
+            .with_app_id(copal_ui_common::desktop::app_id(Edition::Full))
             .with_inner_size([1440.0, 880.0])
             .with_min_inner_size([960.0, 600.0])
             .with_icon(copal_ui_common::look::icon())

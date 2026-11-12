@@ -28,7 +28,7 @@ Legend: **L** = Lychee Lite (free), **P** = Lychee Plus (paid), **C** = Chitubox
 | Auto supports | L, P (new system), C | ✅ 0.2, edges + lowest points + grid in 0.3 |
 | Island detector | L, C | ✅ 0.2 |
 | Rafts | L | ✅ 0.2 |
-| Premium raft styles | P | later |
+| Premium raft styles (pads around feet, a grid of bars on the plate) | P | ✅ 0.4: raft, pads, grid |
 | Parenting and bracing (supports linked to each other, cross braces) | L | ✅ bracing 0.2, shared trunks and one lattice 0.3, manual supports join in 0.3 |
 | Inline supports | P | 0.3 |
 | Proximity detection (supports too close to the model) | P | 0.3 |
@@ -117,7 +117,9 @@ Not planned: model library / store, AI model generation, cloud accounts.
 | Personal printer templates in their own folder, next to the resin folder | L, C | ✅ 0.3 |
 | Picture of the plate from the terminal (`copal-cli render`) | A | ✅ 0.3 |
 | Models made of overlapping parts slice and hollow as one solid | L, C | ✅ 0.3 |
-| Hotkeys for almost every action, shortcut list (F1) | L, C | ✅ 0.3 |
+| Hotkeys for almost every action, shortcut list (F1) | L, C | ✅ 0.3, every key can be changed in 0.4 |
+| Layer slider in the 3D view | L, C | ✅ 0.4 |
+| Print cost from the resin price, summary after slicing | L, C | ✅ 0.4 |
 | Models outside the build volume are marked | L, C | ✅ 0.3 |
 | On plate, center, reset, nudge with the arrow keys | L, C | ✅ 0.3 |
 | The console reaches everything the mouse does (`step`, `select`, `view`, `tool`, `panel`) | A | ✅ 0.3 |

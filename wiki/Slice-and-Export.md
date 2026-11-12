@@ -5,14 +5,28 @@ The left panel shows the printer, file type, layer count, height and an estimate
 Settings are in the **Resin** (layers, exposure) and **Print** (anti-aliasing, lift, retract,
 waits) tabs.
 
+## Layer slider in the 3D view (0.4)
+On the right of the 3D view, in every step, a slider cuts the plate at any layer: you see the
+model, the inside of the hollow and the supports up to that height. `Alt+Up` / `Alt+Down` move it
+one layer (`Shift` for ten), a double-click on it or **All** shows everything again.
+
 ## Layer preview
-Press **Layers** over the 3D view (or **Show layers**). Drag the slider, use ↑ / ↓ or the mouse
-wheel. The top line shows the layer number, its height and its exposure.
+Press **Layers** over the 3D view (or **Show layers**) to see the sliced image of a layer, the way
+the printer's screen shows it. Drag the slider, use ↑ / ↓ or the mouse wheel. The top line shows
+the layer number, its height and its exposure.
 
 ## Slice & export
 **Slice & export…** (Ctrl+E) asks where to save, then slices in the background with a progress bar.
-**Cancel** or `Esc` stops it. When it is done, the console and the left panel show the layer count,
-resin volume and print time, and the export is added to the [[print history|Print-History]].
+**Cancel** or `Esc` stops it. When it is done, a **Ready to print** window shows:
+
+- the **print time**,
+- the number of **layers** and the height,
+- the **resin** in millilitres (models, supports and base),
+- the **weight** in grams,
+- the **price**, from the resin price in the Resin tab. If the price is not set yet, type it right
+  in that window.
+
+The export is also added to the [[print history|Print-History]] with these numbers.
 
 What Copal writes into the file:
 - **Anti-aliasing** (2×, 4×, 8×) with real grey edge pixels.

@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Copal Lite
+Name=Copal Slicer Lite
 GenericName=Resin 3D printing slicer (light version)
 Comment=Copal in a simple, fast interface for weak computers
 Exec=copal-lite %F
